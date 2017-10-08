@@ -1,9 +1,17 @@
 defmodule DataLoader.Ecto do
   defstruct [
-    :run,
+    :repo,
+    :caller,
     batches: %{},
     results: %{},
   ]
+
+  def new(repo) do
+    %__MODULE__{
+      repo: repo,
+      caller: self(),
+    }
+  end
 
   defimpl DataLoader.Source do
     def add(source, batch_key, item_key, item) do
@@ -23,11 +31,18 @@ defmodule DataLoader.Ecto do
       results[batch_key][item_key]
     end
 
-    defp run_batch({key, items}, source) do
+    def pending_batches?(%{batches: batches}) do
+      batches != %{}
+    end
+
+    defp run_batch({assoc, items}, source) do
       {item_keys, items} = Enum.unzip(items)
-      results = source.run.(source, key, items)
+      results =
+        items
+        |> source.repo.preload([assoc], caller: source.caller)
+        |> Enum.map(&Map.get(&1, assoc))
       batch_results = Enum.zip(item_keys, results)
-      {key, Map.new(batch_results)}
+      {assoc, Map.new(batch_results)}
     end
   end
 end

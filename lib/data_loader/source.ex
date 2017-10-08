@@ -13,4 +13,7 @@ defprotocol DataLoader.Source do
 
   @spec get_result(t, batch_key, item_key) :: item
   def get_result(source, batch_key, item_key)
+
+  @spec pending_batches?(t) :: boolean
+  def pending_batches?(source)
 end

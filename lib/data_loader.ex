@@ -34,9 +34,7 @@ defmodule DataLoader do
   end
 
   def pending_batches?(loader) do
-    Enum.any?(loader.sources, fn {_, source} ->
-      source.batches != %{}
-    end)
+    Enum.any?(loader.sources, fn {_name, source} -> Source.pending_batches?(source) end)
   end
 
   defp get_source(loader, source_name) do
