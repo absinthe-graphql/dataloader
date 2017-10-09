@@ -6,17 +6,19 @@ defmodule DataLoader do
 
   alias DataLoader.Source
 
+  def new(opts \\ []), do: %__MODULE__{options: opts}
+
   def add_source(loader, name, source) do
     Map.update!(loader, :sources, fn sources ->
       Map.put(sources, name, source)
     end)
   end
 
-  def add(loader, source_name, batch_key, item_key, item) do
+  def add(loader, source_name, batch_key, val, opts \\ []) do
     source =
       loader
       |> get_source(source_name)
-      |> Source.add(batch_key, item_key, item)
+      |> Source.add(batch_key, val, opts)
 
     put_in(loader.sources[source_name], source)
   end
