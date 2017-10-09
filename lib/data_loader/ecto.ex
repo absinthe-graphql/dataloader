@@ -40,11 +40,13 @@ if Code.ensure_loaded?(Ecto) do
 
       def get_result(%{results: results}, batch, item) do
         {batch_key, item_key} = classify(batch, item, [])
+        #ugh
+        item_key = with {item_key, _} <- item_key, do: item_key
         results[batch_key][item_key]
       end
 
       defp classify(assoc_field, %schema{} = record, opts) when is_atom(assoc_field) do
-        assoc = schema.__schema__(:association, assoc_field)
+        %{} = assoc = schema.__schema__(:association, assoc_field)
         primary_keys = schema.__schema__(:primary_key)
         id = Enum.map(primary_keys, &Map.get(record, &1))
         {{:assoc, assoc, opts}, {id, record}}
@@ -82,6 +84,19 @@ if Code.ensure_loaded?(Ecto) do
           |> Map.new(&{&1.id, &1})
 
         {key, results}
+      end
+      defp run_batch({{:assoc, %{queryable: queryable} = assoc, opts} = key, records}, source) do
+        {ids, records} = Enum.unzip(records)
+
+        queryable = Ecto.Queryable.to_query(queryable)
+        field = assoc.field
+
+        results =
+          records
+          |> source.repo.preload([{field, queryable}], caller: source.caller)
+          |> Enum.map(&Map.get(&1, field))
+
+        {key, Map.new(Enum.zip(ids, results))}
       end
     end
   end
