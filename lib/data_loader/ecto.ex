@@ -12,7 +12,6 @@ if Code.ensure_loaded?(Ecto) do
     defstruct [
       :repo,
       :query,
-      :caller,
       batches: %{},
       results: %{},
     ]
@@ -20,12 +19,11 @@ if Code.ensure_loaded?(Ecto) do
     def new(repo, opts \\ []) do
       %__MODULE__{
         repo: repo,
-        caller: self(),
-        query: Keyword.get(opts, :query, &query/3)
+        query: Keyword.get(opts, :query, &query/2)
       }
     end
 
-    defp query(schema, _, _ ) do
+    defp query(schema, _) do
       schema
     end
 
@@ -38,23 +36,37 @@ if Code.ensure_loaded?(Ecto) do
         %{source | results: results, batches: %{}}
       end
 
-      def get_result(%{results: results}, batch, item) do
-        {batch_key, item_key} = classify(batch, item, [])
-        #ugh
-        item_key = with {item_key, _} <- item_key, do: item_key
+      def get(%{results: results}, batch, item) do
+        batch = normalize_key(batch)
+        {batch_key, item_key, _item} = get_keys(batch, item)
         results[batch_key][item_key]
       end
 
-      defp classify(assoc_field, %schema{} = record, opts) when is_atom(assoc_field) do
-        %{} = assoc = schema.__schema__(:association, assoc_field)
+      def load(source, batch, item) do
+        batch = normalize_key(batch)
+        {batch_key, item_key, item} = get_keys(batch, item)
+        entry = {item_key, item}
+        update_in(source.batches, fn batches ->
+          Map.update(batches, batch_key, [entry], &[entry | &1])
+        end)
+      end
+
+      def pending_batches?(%{batches: batches}) do
+        batches != %{}
+      end
+
+      defp get_keys({assoc_field, opts}, %schema{} = record) when is_atom(assoc_field) do
         primary_keys = schema.__schema__(:primary_key)
         id = Enum.map(primary_keys, &Map.get(record, &1))
-        {{:assoc, assoc, opts}, {id, record}}
+
+        %{queryable: queryable, field: field} = schema.__schema__(:association, assoc_field)
+
+        {{:assoc, self(), field, queryable, opts}, id, record}
       end
-      defp classify(queryable, id, opts) when is_atom(queryable) do
-        {{:queryable, queryable, opts}, id}
+      defp get_keys({queryable, opts}, id) when is_atom(queryable) do
+        {{:queryable, self(), queryable, opts}, id, id}
       end
-      defp classify(key, item, _) do
+      defp get_keys(key, item) do
         raise """
         Invalid: #{inspect key}
         #{inspect item}
@@ -63,37 +75,33 @@ if Code.ensure_loaded?(Ecto) do
         """
       end
 
-      def pending_batches?(%{batches: batches}) do
-        batches != %{}
+      defp normalize_key(tuple) when is_tuple(tuple) do
+        tuple
       end
+      defp normalize_key(key), do: {key, []}
 
-      def add(source, batch, item, _opts) do
-        {batch_key, item} = classify(batch, item, [])
-        update_in(source.batches, fn batches ->
-          Map.update(batches, batch_key, [item], &[item | &1])
-        end)
-      end
-
-      defp run_batch({{:queryable, queryable, opts} = key, ids}, source) do
-        query = from s in queryable,
+      defp run_batch({{:queryable, pid, queryable, opts} = key, ids}, source) do
+        {ids, _} = Enum.unzip(ids)
+        query = source.query.(queryable, opts)
+        query = from s in query,
           where: s.id in ^ids
 
         results =
           query
-          |> source.repo.all(caller: source.caller)
+          |> source.repo.all(caller: pid)
           |> Map.new(&{&1.id, &1})
 
         {key, results}
       end
-      defp run_batch({{:assoc, %{queryable: queryable} = assoc, opts} = key, records}, source) do
+      defp run_batch({{:assoc, pid, field, queryable, opts} = key, records}, source) do
         {ids, records} = Enum.unzip(records)
 
-        queryable = Ecto.Queryable.to_query(queryable)
-        field = assoc.field
+        query = source.query.(queryable, opts)
+        query = Ecto.Queryable.to_query(query)
 
         results =
           records
-          |> source.repo.preload([{field, queryable}], caller: source.caller)
+          |> source.repo.preload([{field, query}], caller: pid)
           |> Enum.map(&Map.get(&1, field))
 
         {key, Map.new(Enum.zip(ids, results))}

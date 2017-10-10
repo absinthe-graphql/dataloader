@@ -14,11 +14,11 @@ defmodule DataLoader do
     end)
   end
 
-  def add(loader, source_name, batch_key, val, opts \\ []) do
+  def load(loader, source_name, batch_key, val) do
     source =
       loader
       |> get_source(source_name)
-      |> Source.add(batch_key, val, opts)
+      |> Source.load(batch_key, val)
 
     put_in(loader.sources[source_name], source)
   end
@@ -29,10 +29,10 @@ defmodule DataLoader do
     %{dataloader | sources: sources}
   end
 
-  def get_result(loader, source, batch_key, item_key) do
+  def get(loader, source, batch_key, item_key) do
     loader
     |> get_source(source)
-    |> Source.get_result(batch_key, item_key)
+    |> Source.get(batch_key, item_key)
   end
 
   def pending_batches?(loader) do
