@@ -14,13 +14,21 @@ defmodule DataLoader do
     end)
   end
 
-  def load(loader, source_name, batch_key, val) do
+  def load_many(loader, source_name, batch_key, vals) when is_list(vals) do
     source =
       loader
       |> get_source(source_name)
-      |> Source.load(batch_key, val)
+      |> do_load(batch_key, vals)
 
     put_in(loader.sources[source_name], source)
+  end
+
+  def load(loader, source_name, batch_key, val) do
+    load_many(loader, source_name, batch_key, [val])
+  end
+
+  defp do_load(source, batch_key, vals) do
+    Enum.reduce(vals, source, &Source.load(&2, batch_key, &1))
   end
 
   def run(dataloader) do
