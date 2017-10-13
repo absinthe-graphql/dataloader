@@ -43,12 +43,19 @@ defmodule DataLoader do
     |> Source.get(batch_key, item_key)
   end
 
+  def get_many(loader, source, batch_key, item_keys) when is_list(item_keys) do
+    source = get_source(loader, source)
+    for key <- item_keys do
+      Source.get(source, batch_key, key)
+    end
+  end
+
   def pending_batches?(loader) do
     Enum.any?(loader.sources, fn {_name, source} -> Source.pending_batches?(source) end)
   end
 
   defp get_source(loader, source_name) do
-    loader.sources[source_name] || raise "Source does not exist: #{source_name}"
+    loader.sources[source_name] || raise "Source does not exist: #{inspect source_name}"
   end
 
   defp run_source({name, source}) do

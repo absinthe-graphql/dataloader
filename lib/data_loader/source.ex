@@ -1,6 +1,4 @@
 defprotocol DataLoader.Source do
-  @type t :: module
-
   @type batch_key :: term
   @type item_key :: term
 

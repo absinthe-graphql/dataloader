@@ -14,13 +14,14 @@ if Code.ensure_loaded?(Ecto) do
       :query,
       batches: %{},
       results: %{},
+      default_params: %{},
     ]
 
     def new(repo, opts \\ []) do
-      %__MODULE__{
-        repo: repo,
-        query: Keyword.get(opts, :query, &query/2)
-      }
+      opts = Keyword.put(opts, :query, opts[:query] || &query/2)
+
+      %__MODULE__{repo: repo}
+      |> struct(opts)
     end
 
     defp query(schema, _) do
@@ -36,14 +37,14 @@ if Code.ensure_loaded?(Ecto) do
         %{source | results: results, batches: %{}}
       end
 
-      def get(%{results: results}, batch, item) do
-        batch = normalize_key(batch)
+      def get(%{results: results} = source, batch, item) do
+        batch = normalize_key(batch, source.default_params)
         {batch_key, item_key, _item} = get_keys(batch, item)
         results[batch_key][item_key]
       end
 
       def load(source, batch, item) do
-        batch = normalize_key(batch)
+        batch = normalize_key(batch, source.default_params)
         {batch_key, item_key, item} = get_keys(batch, item)
         entry = {item_key, item}
         update_in(source.batches, fn batches ->
@@ -75,10 +76,10 @@ if Code.ensure_loaded?(Ecto) do
         """
       end
 
-      defp normalize_key(tuple) when is_tuple(tuple) do
+      defp normalize_key(tuple, _default_params) when is_tuple(tuple) do
         tuple
       end
-      defp normalize_key(key), do: {key, []}
+      defp normalize_key(key, default_params), do: {key, default_params}
 
       defp run_batch({{:queryable, pid, queryable, opts} = key, ids}, source) do
         {ids, _} = Enum.unzip(ids)
