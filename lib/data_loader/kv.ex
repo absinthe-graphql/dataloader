@@ -5,6 +5,9 @@ defmodule DataLoader.KV do
   This module is a simple key value based data loader source. You
   must supply a function that accepts ids, and returns a map of values
   keyed by id.
+
+  ## Examples
+  
   """
 
   defstruct [

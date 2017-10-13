@@ -6,7 +6,101 @@ if Code.ensure_loaded?(Ecto) do
     This defines a schema and an implementation of the `DataLoader.Source` protocol
     for handling Ecto related batching.
 
-    Ecto adds some specific challenges when using DataLoader
+    A simple Ecto source only needs to know about your application's Repo.
+
+    ## Basic Usage
+
+    ```elixir
+    source = DataLoader.Ecto.new(MyApp.Repo)
+
+    loader =
+      DataLoader.new
+      |> DataLoader.add_source(Accounts, source)
+      |> DataLoader.load(Accounts, User, 1)
+      |> DataLoader.load_many(Accounts, Organization, [4, 9])
+      |> DataLoader.run
+
+    organizations = DataLoader.get(loader, Accounts, Organization, [4,9])
+
+    loader =
+      loader
+      |> DataLoader.load_many(Accounts, :users, organizations)
+      |> DataLoader.run
+    ```
+
+    ## Filtering / Ordering
+
+    `Dataloader.new/2` can receive a 2 arity function that can be used to apply
+    broad ordering and filtering rules, as well as handle parameters
+
+    ```elixir
+    source = DataLoader.Ecto.new(MyApp.Repo, query: &Accounts.query/2)
+
+    loader =
+      DataLoader.new
+      |> DataLoader.add_source(Accounts, source)
+    ```
+
+    When we call `load/4` we can pass in a tuple as the batch key
+
+    ```
+    loader
+    |> DataLoader.load(Accounts, {User, order: :name}, 1)
+
+    # or
+    loader
+    |> DataLoader.load_many(Accounts, {:users, order: :name}, organizations)
+
+    # this is still supported
+    loader
+    |> DataLoader.load(Accounts, User, 1)
+    ```
+
+    In both cases the `Accounts.query` function would be:
+    ```
+    def query(User, params) do
+      field = params[:order] || :id
+      from u in User, order_by: [asc: field(u, ^field)]
+    end
+    def query(queryable, _) do
+      queryable
+    end
+    ```
+
+    If we query something that ends up using the `User` schema, whether directly
+    or via association, the `query/2` function will match on the first clause and
+    we can handle the params. If no params are supplied, the params arg defaults
+    to `source.default_params` which itself defaults to `%{}`.
+
+    `default_params` is an extremely useful place to store values like the current user:
+
+    ```
+    source = DataLoader.Ecto.new(MyApp.Repo, [
+      query: &Accounts.query/2,
+      default_params: %{current_user: current_user},
+    ])
+
+    loader =
+      DataLoader.new
+      |> DataLoader.add_source(Accounts, source)
+      |> DataLoader.load_many(Accounts, Organization, ids)
+      |> DataLoader.run
+
+    # the query function
+    def query(Organization, %{current_user: user}) do
+      from o in Organization,
+        join: m in assoc(o, :memberships),
+        where: m.user_id == ^user.id
+    end
+    def query(queryable, _) do
+      queryable
+    end
+    ```
+
+    In our query function we are pattern matching on the current user to make sure
+    that we are only able to lookup data in organizations that the user actually
+    has a membership in. Additional options you specify IE `{Organization, %{order: :asc}}`
+    are merged into the default.
     """
 
     defstruct [
@@ -76,8 +170,8 @@ if Code.ensure_loaded?(Ecto) do
         """
       end
 
-      defp normalize_key(tuple, _default_params) when is_tuple(tuple) do
-        tuple
+      defp normalize_key({key, params}, default_params) do
+        {key, Enum.into(params, default_params)}
       end
       defp normalize_key(key, default_params), do: {key, default_params}
 
