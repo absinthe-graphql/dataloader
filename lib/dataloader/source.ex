@@ -1,4 +1,4 @@
-defprotocol DataLoader.Source do
+defprotocol Dataloader.Source do
   @type batch_key :: term
   @type item_key :: term
 

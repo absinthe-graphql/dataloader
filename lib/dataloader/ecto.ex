@@ -1,9 +1,9 @@
 if Code.ensure_loaded?(Ecto) do
-  defmodule DataLoader.Ecto do
+  defmodule Dataloader.Ecto do
     @moduledoc """
-    Ecto source for DataLoader
+    Ecto source for Dataloader
 
-    This defines a schema and an implementation of the `DataLoader.Source` protocol
+    This defines a schema and an implementation of the `Dataloader.Source` protocol
     for handling Ecto related batching.
 
     A simple Ecto source only needs to know about your application's Repo.
@@ -11,21 +11,21 @@ if Code.ensure_loaded?(Ecto) do
     ## Basic Usage
 
     ```elixir
-    source = DataLoader.Ecto.new(MyApp.Repo)
+    source = Dataloader.Ecto.new(MyApp.Repo)
 
     loader =
-      DataLoader.new
-      |> DataLoader.add_source(Accounts, source)
-      |> DataLoader.load(Accounts, User, 1)
-      |> DataLoader.load_many(Accounts, Organization, [4, 9])
-      |> DataLoader.run
+      Dataloader.new
+      |> Dataloader.add_source(Accounts, source)
+      |> Dataloader.load(Accounts, User, 1)
+      |> Dataloader.load_many(Accounts, Organization, [4, 9])
+      |> Dataloader.run
 
-    organizations = DataLoader.get(loader, Accounts, Organization, [4,9])
+    organizations = Dataloader.get(loader, Accounts, Organization, [4,9])
 
     loader =
       loader
-      |> DataLoader.load_many(Accounts, :users, organizations)
-      |> DataLoader.run
+      |> Dataloader.load_many(Accounts, :users, organizations)
+      |> Dataloader.run
     ```
 
     ## Filtering / Ordering
@@ -34,26 +34,26 @@ if Code.ensure_loaded?(Ecto) do
     broad ordering and filtering rules, as well as handle parameters
 
     ```elixir
-    source = DataLoader.Ecto.new(MyApp.Repo, query: &Accounts.query/2)
+    source = Dataloader.Ecto.new(MyApp.Repo, query: &Accounts.query/2)
 
     loader =
-      DataLoader.new
-      |> DataLoader.add_source(Accounts, source)
+      Dataloader.new
+      |> Dataloader.add_source(Accounts, source)
     ```
 
     When we call `load/4` we can pass in a tuple as the batch key
 
     ```
     loader
-    |> DataLoader.load(Accounts, {User, order: :name}, 1)
+    |> Dataloader.load(Accounts, {User, order: :name}, 1)
 
     # or
     loader
-    |> DataLoader.load_many(Accounts, {:users, order: :name}, organizations)
+    |> Dataloader.load_many(Accounts, {:users, order: :name}, organizations)
 
     # this is still supported
     loader
-    |> DataLoader.load(Accounts, User, 1)
+    |> Dataloader.load(Accounts, User, 1)
     ```
 
     In both cases the `Accounts.query` function would be:
@@ -75,16 +75,16 @@ if Code.ensure_loaded?(Ecto) do
     `default_params` is an extremely useful place to store values like the current user:
 
     ```
-    source = DataLoader.Ecto.new(MyApp.Repo, [
+    source = Dataloader.Ecto.new(MyApp.Repo, [
       query: &Accounts.query/2,
       default_params: %{current_user: current_user},
     ])
 
     loader =
-      DataLoader.new
-      |> DataLoader.add_source(Accounts, source)
-      |> DataLoader.load_many(Accounts, Organization, ids)
-      |> DataLoader.run
+      Dataloader.new
+      |> Dataloader.add_source(Accounts, source)
+      |> Dataloader.load_many(Accounts, Organization, ids)
+      |> Dataloader.run
 
     # the query function
     def query(Organization, %{current_user: user}) do
@@ -122,7 +122,7 @@ if Code.ensure_loaded?(Ecto) do
       schema
     end
 
-    defimpl DataLoader.Source do
+    defimpl Dataloader.Source do
       import Ecto.Query
 
       def run(source) do

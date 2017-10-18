@@ -1,10 +1,10 @@
-defmodule DataLoader do
+defmodule Dataloader do
   defstruct [
     sources: %{},
     options: [],
   ]
 
-  alias DataLoader.Source
+  alias Dataloader.Source
 
   def new(opts \\ []), do: %__MODULE__{options: opts}
 

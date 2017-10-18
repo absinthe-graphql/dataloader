@@ -10,11 +10,11 @@ use Mix.Config
 
 # You can configure your application as:
 #
-#     config :data_loader, key: :value
+#     config :dataloader, key: :value
 #
 # and access this configuration in your application as:
 #
-#     Application.get_env(:data_loader, :key)
+#     Application.get_env(:dataloader, :key)
 #
 # You can also configure a 3rd-party app:
 #

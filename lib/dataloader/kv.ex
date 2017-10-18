@@ -1,6 +1,6 @@
-defmodule DataLoader.KV do
+defmodule Dataloader.KV do
   @moduledoc """
-  Simple KV based DataLoader source.
+  Simple KV based Dataloader source.
 
   This module is a simple key value based data loader source. You
   must supply a function that accepts ids, and returns a map of values
@@ -28,7 +28,7 @@ defmodule DataLoader.KV do
     }
   end
 
-  defimpl DataLoader.Source do
+  defimpl Dataloader.Source do
     def load(source, batch_key, id) do
       case get(source, batch_key, id) do
         nil ->
