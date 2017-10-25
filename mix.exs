@@ -1,14 +1,17 @@
 defmodule Dataloader.Mixfile do
   use Mix.Project
 
+  @version "0.1.0"
+
   def project do
     [
       app: :dataloader,
-      version: "0.1.0",
+      version: @version,
       elixir: "~> 1.5",
       start_permanent: Mix.env == :prod,
       elixirc_paths: elixirc_paths(Mix.env),
       package: package(),
+      docs: [source_ref: "v#{@version}", main: "Dataloader"],
       deps: deps()
     ]
   end
@@ -42,6 +45,7 @@ defmodule Dataloader.Mixfile do
       {:ecto, ">= 0.0.0", optional: true},
       {:postgrex, ">= 0.0.0", only: :test},
       {:dialyxir, "~> 0.5", only: :dev},
+      {:ex_doc, ">= 0.0.0", only: [:dev]},
       # {:dep_from_hexpm, "~> 0.3.0"},
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"},
     ]
