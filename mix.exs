@@ -8,8 +8,17 @@ defmodule Dataloader.Mixfile do
       elixir: "~> 1.5",
       start_permanent: Mix.env == :prod,
       elixirc_paths: elixirc_paths(Mix.env),
+      package: package(),
       deps: deps()
     ]
+  end
+
+  defp package do
+    [description: "Efficient batch loading in Elixir",
+     files: ["lib", "mix.exs", "README*"],
+     maintainers: ["Ben Wilson"],
+     licenses: ["MIT"],
+     links: %{github: "https://github.com/absinthe-graphql/dataloader"}]
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
