@@ -1,6 +1,6 @@
 # Dataloader
 
-Dataloader exists as a way to efficiently load data in batches, lazily. It's inspired by https://github.com/facebook/dataloader, although it makes some small API changes to better suite Elixir use cases.
+Dataloader provides an easy way efficiently load data in batches. It's inspired by https://github.com/facebook/dataloader, although it makes some small API changes to better suite Elixir use cases.
 
 ```
 source =

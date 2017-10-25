@@ -3,6 +3,6 @@ defmodule DataloaderTest do
   doctest Dataloader
 
   test "greets the world" do
-    assert Dataloader.hello() == :world
+
   end
 end

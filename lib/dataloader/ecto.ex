@@ -106,11 +106,40 @@ if Code.ensure_loaded?(Ecto) do
     defstruct [
       :repo,
       :query,
+      repo_opts: [],
       batches: %{},
       results: %{},
       default_params: %{},
     ]
 
+    @type t :: %__MODULE__{
+      repo: Ecto.Repo.t,
+      query: query_fun,
+      repo_opts: Keyword.t,
+      batches: map,
+      results: map,
+      default_params: map,
+    }
+
+    @type query_fun :: (Ecto.Queryable.t, any -> Ecto.Queryable.t)
+    @type opt :: {:query, query_fun}
+      | {:repo_opts, Keyword.t}
+
+    @doc """
+    Create an Ecto Dataloader source.
+
+    This module handles retrieving data from Ecto for dataloader. It requires a
+    valid Ecto Repo. It also accepts a `repo_opts:` option which is handy for
+    applying options to any calls to Repo functions that this module makes.
+
+    For example, you can use this module in a multi-tenant context by using
+    the `prefix` option:
+
+    ```
+    Dataloader.Ecto.new(MyApp.Repo, repo_opts: [prefix: "tenant"])
+    ```
+    """
+    @spec new(Ecto.Repo.t, [opt]) :: t
     def new(repo, opts \\ []) do
       opts = Keyword.put(opts, :query, opts[:query] || &query/2)
 
@@ -181,9 +210,11 @@ if Code.ensure_loaded?(Ecto) do
         query = from s in query,
           where: s.id in ^ids
 
+        repo_opts = Keyword.put(source.repo_opts, :caller, pid)
+
         results =
           query
-          |> source.repo.all(caller: pid)
+          |> source.repo.all(repo_opts)
           |> Map.new(&{&1.id, &1})
 
         {key, results}
@@ -194,9 +225,11 @@ if Code.ensure_loaded?(Ecto) do
         query = source.query.(queryable, opts)
         query = Ecto.Queryable.to_query(query)
 
+        repo_opts = Keyword.put(source.repo_opts, :caller, pid)
+
         results =
           records
-          |> source.repo.preload([{field, query}], caller: pid)
+          |> source.repo.preload([{field, query}], repo_opts)
           |> Enum.map(&Map.get(&1, field))
 
         {key, Map.new(Enum.zip(ids, results))}
