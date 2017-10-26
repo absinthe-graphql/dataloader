@@ -160,19 +160,26 @@ if Code.ensure_loaded?(Ecto) do
         %{source | results: results, batches: %{}}
       end
 
-      def get(%{results: results} = source, batch, item) do
+      def fetch(%{results: results} = source, batch, item) do
         batch = normalize_key(batch, source.default_params)
         {batch_key, item_key, _item} = get_keys(batch, item)
-        results[batch_key][item_key]
+        with {:ok, batch} <- Map.fetch(results, batch_key) do
+          Map.fetch(batch, item_key)
+        end
       end
 
       def load(source, batch, item) do
-        batch = normalize_key(batch, source.default_params)
-        {batch_key, item_key, item} = get_keys(batch, item)
-        entry = {item_key, item}
-        update_in(source.batches, fn batches ->
-          Map.update(batches, batch_key, [entry], &[entry | &1])
-        end)
+        case fetch(source, batch, item) do
+          :error ->
+            batch = normalize_key(batch, source.default_params)
+            {batch_key, item_key, item} = get_keys(batch, item)
+            entry = {item_key, item}
+            update_in(source.batches, fn batches ->
+              Map.update(batches, batch_key, [entry], &[entry | &1])
+            end)
+          _ ->
+            source
+        end
       end
 
       def pending_batches?(%{batches: batches}) do

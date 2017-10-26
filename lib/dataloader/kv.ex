@@ -7,7 +7,7 @@ defmodule Dataloader.KV do
   keyed by id.
 
   ## Examples
-  
+
   """
 
   defstruct [
@@ -30,19 +30,21 @@ defmodule Dataloader.KV do
 
   defimpl Dataloader.Source do
     def load(source, batch_key, id) do
-      case get(source, batch_key, id) do
-        nil ->
+      case fetch(source, batch_key, id) do
+        :error ->
           update_in(source.batches[batch_key], fn
             nil -> [id]
             ids -> [id | ids]
           end)
-        _ ->
-          source # cached
+        source ->
+          source
       end
     end
 
-    def get(source, batch_key, id) do
-      source.results[batch_key][id]
+    def fetch(source, batch_key, id) do
+      with {:ok, batch} <- Map.fetch(source, batch_key) do
+        Map.fetch(batch, id)
+      end
     end
 
     def run(source) do

@@ -8,8 +8,8 @@ defprotocol Dataloader.Source do
   @spec run(t) :: t
   def run(source)
 
-  @spec get(t, batch_key, item_key) :: term
-  def get(source, batch_key, item_key)
+  @spec fetch(t, batch_key, item_key) :: {:ok, term} | :error
+  def fetch(source, batch_key, item_key)
 
   @spec pending_batches?(t) :: boolean
   def pending_batches?(source)
