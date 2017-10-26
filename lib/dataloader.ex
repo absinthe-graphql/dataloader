@@ -101,14 +101,20 @@ defmodule Dataloader do
   def get(loader, source, batch_key, item_key) do
     loader
     |> get_source(source)
-    |> Source.get(batch_key, item_key)
+    |> Source.fetch(batch_key, item_key)
+    |> do_get
   end
+
+  defp do_get({:ok, val}), do: val
+  defp do_get(:error), do: nil
 
   @spec get_many(t, source_name, any, any) :: [any] | no_return()
   def get_many(loader, source, batch_key, item_keys) when is_list(item_keys) do
     source = get_source(loader, source)
     for key <- item_keys do
-      Source.get(source, batch_key, key)
+      source
+      |> Source.fetch(batch_key, key)
+      |> do_get
     end
   end
 
