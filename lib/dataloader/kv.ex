@@ -29,6 +29,11 @@ defmodule Dataloader.KV do
   end
 
   defimpl Dataloader.Source do
+    def put(source, batch, id, result) do
+      batches = Map.update(source.batches, batch, %{id => result}, &Map.put(&1, id, result))
+      %{source | batches: batches}
+    end
+
     def load(source, batch_key, id) do
       case fetch(source, batch_key, id) do
         :error ->
