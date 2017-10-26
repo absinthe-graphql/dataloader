@@ -114,6 +114,7 @@ if Code.ensure_loaded?(Ecto) do
       batches: %{},
       results: %{},
       default_params: %{},
+      options: [],
     ]
 
     @type t :: %__MODULE__{
@@ -123,11 +124,13 @@ if Code.ensure_loaded?(Ecto) do
       batches: map,
       results: map,
       default_params: map,
+      options: Keyword.t
     }
 
     @type query_fun :: (Ecto.Queryable.t, any -> Ecto.Queryable.t)
     @type opt :: {:query, query_fun}
       | {:repo_opts, Keyword.t}
+      | {:timeout, pos_integer}
 
     @doc """
     Create an Ecto Dataloader source.
@@ -145,10 +148,11 @@ if Code.ensure_loaded?(Ecto) do
     """
     @spec new(Ecto.Repo.t, [opt]) :: t
     def new(repo, opts \\ []) do
-      opts = Keyword.put(opts, :query, opts[:query] || &query/2)
+      data = Keyword.put(opts, :query, opts[:query] || &query/2)
+      opts = Keyword.take(opts, [:timeout])
 
-      %__MODULE__{repo: repo}
-      |> struct(opts)
+      %__MODULE__{repo: repo, options: opts}
+      |> struct(data)
     end
 
     defp query(schema, _) do
@@ -159,8 +163,12 @@ if Code.ensure_loaded?(Ecto) do
       import Ecto.Query
 
       def run(source) do
-        results = Map.new(source.batches, &run_batch(&1, source))
-        # TODO: deep merge results
+        results =
+          source.batches
+          |> Dataloader.pmap(&run_batch(&1, source), [
+            timeout: source.options[:timeout] || 15_000,
+            tag: "Ecto batch"
+          ])
         %{source | results: results, batches: %{}}
       end
 
@@ -170,6 +178,13 @@ if Code.ensure_loaded?(Ecto) do
         with {:ok, batch} <- Map.fetch(results, batch_key) do
           Map.fetch(batch, item_key)
         end
+      end
+
+      def put(source, batch, item, result) do
+        batch = normalize_key(batch, source.default_params)
+        {batch_key, item_key, _item} = get_keys(batch, item)
+        batches = Map.update(source.batches, batch_key, %{item_key => result}, &Map.put(&1, item_key, result))
+        %{source | batches: batches}
       end
 
       def load(source, batch, item) do
@@ -194,7 +209,15 @@ if Code.ensure_loaded?(Ecto) do
         primary_keys = schema.__schema__(:primary_key)
         id = Enum.map(primary_keys, &Map.get(record, &1))
 
-        %{queryable: queryable, field: field} = schema.__schema__(:association, assoc_field)
+        {queryable, field} = case schema.__schema__(:association, assoc_field) do
+          %{queryable: queryable, field: field} ->
+            {queryable, field}
+          val ->
+            raise """
+            Valid association #{assoc_field} not found on schema #{inspect schema}
+            Got: #{inspect val}
+            """
+        end
 
         {{:assoc, self(), field, queryable, opts}, id, record}
       end
@@ -206,7 +229,7 @@ if Code.ensure_loaded?(Ecto) do
         Invalid: #{inspect key}
         #{inspect item}
 
-        The batch key must either be a queryable, or an association name.
+        The batch key must either be a schema module, or an association name.
         """
       end
 
@@ -217,9 +240,10 @@ if Code.ensure_loaded?(Ecto) do
 
       defp run_batch({{:queryable, pid, queryable, opts} = key, ids}, source) do
         {ids, _} = Enum.unzip(ids)
+        [primary_key] = queryable.__schema__(:primary_key)
         query = source.query.(queryable, opts)
         query = from s in query,
-          where: s.id in ^ids
+          where: field(s, ^primary_key) in ^ids
 
         repo_opts = Keyword.put(source.repo_opts, :caller, pid)
 

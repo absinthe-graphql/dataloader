@@ -86,35 +86,19 @@ defmodule Dataloader do
 
   @spec run(t) :: t | no_return
   def run(dataloader) do
-    # TODO: pmap
-    timeout = dataloader.options[:timeout] || 15_000
-
-    {tasks, refs} =
-      dataloader.sources
-      |> Enum.map(fn {name, source} ->
-        task = Task.async(fn -> {name, Source.run(source)} end)
-        {task, {task.ref, name}}
-      end)
-      |> Enum.unzip
-
-    refs = Map.new(refs)
-
-    sources =
-      tasks
-      |> Task.yield_many(timeout)
-      |> shutdown_tasks(refs)
-      |> collect_failures
-      |> case do
-        {:ok, results} ->
-          results
-        {:error, failures} ->
-          raise """
-          Sources did not complete within #{timeout}
-          Timed out: #{inspect failures}
-          """
-      end
-
-    %{dataloader | sources: sources}
+    if pending_batches?(dataloader) do
+      fun = fn {name, source} -> {name, Source.run(source)} end
+      sources =
+        dataloader.sources
+        |> pmap(fun, [
+          tag: "Source",
+          timeout: dataloader.options[:timeout] || 15_000
+        ])
+        |> Map.new
+      %{dataloader | sources: sources}
+    else
+      dataloader
+    end
   end
 
   defp collect_failures(tasks_and_results, failures \\ [], success \\ [])
@@ -167,6 +151,34 @@ defmodule Dataloader do
 
   defp get_source(loader, source_name) do
     loader.sources[source_name] || raise "Source does not exist: #{inspect source_name}"
+  end
+
+  @doc false
+  def pmap(items, fun, opts) do
+    timeout = opts[:timeout] || 15_000
+    {tasks, refs} =
+      items
+      |> Enum.map(fn {name, _} = batch ->
+        task = Task.async(fn -> fun.(batch) end)
+        {task, {task.ref, name}}
+      end)
+      |> Enum.unzip
+
+    refs = Map.new(refs)
+
+    tasks
+    |> Task.yield_many(timeout)
+    |> shutdown_tasks(refs)
+    |> collect_failures
+    |> case do
+      {:ok, results} ->
+        results
+      {:error, failures} ->
+        raise """
+        #{opts[:tag] || "Batch"} did not complete within #{timeout}
+        Timed out: #{inspect failures}
+        """
+    end
   end
 
 end

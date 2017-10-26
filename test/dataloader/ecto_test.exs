@@ -1,15 +1,10 @@
 defmodule Dataloader.EctoTest do
   use ExUnit.Case, async: true
 
-  alias Dataloader.{TestRepo, User}
+  alias Dataloader.{TestRepo, User, Post}
 
   setup do
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(TestRepo)
-
-    users = [
-      %{username: "Ben Wilson"}
-    ]
-    TestRepo.insert_all(User, users)
 
     test_pid = self()
     source = Dataloader.Ecto.new(TestRepo, query: &query(&1, &2, test_pid))
@@ -22,6 +17,11 @@ defmodule Dataloader.EctoTest do
   end
 
   test "basic loading works", %{loader: loader} do
+    users = [
+      %{username: "Ben Wilson"}
+    ]
+    TestRepo.insert_all(User, users)
+
     users = TestRepo.all(User)
     user_ids = users |> Enum.map(&(&1.id))
 
@@ -47,8 +47,52 @@ defmodule Dataloader.EctoTest do
     refute_receive(:querying)
   end
 
-  test "association loading works" do
+  test "association loading works", %{loader: loader} do
+    user = %User{username: "Ben Wilson"} |> TestRepo.insert!
+    posts = [
+      %Post{user_id: user.id},
+      %Post{user_id: user.id},
+    ] |> Enum.map(&TestRepo.insert!/1)
 
+    loader =
+      loader
+      |> Dataloader.load(Test, :posts, user)
+      |> Dataloader.run
+
+    loaded_posts =
+      loader
+      |> Dataloader.get(Test, :posts, user)
+
+    assert posts == loaded_posts
+    assert_receive(:querying)
+
+    # loading again doesn't query again due to caching
+    loader
+    |> Dataloader.load(Test, :posts, user)
+    |> Dataloader.run
+
+    refute_receive(:querying)
+  end
+
+  test "loading something from cache doesn't change the loader", %{loader: loader} do
+    user = %User{username: "Ben Wilson"} |> TestRepo.insert!
+    _ = [
+      %Post{user_id: user.id},
+      %Post{user_id: user.id},
+    ] |> Enum.map(&TestRepo.insert!/1)
+
+    round1_loader =
+      loader
+      |> Dataloader.load(Test, :posts, user)
+      |> Dataloader.run
+
+    assert ^round1_loader =
+      round1_loader
+      |> Dataloader.load(Test, :posts, user)
+      |> Dataloader.run
+
+    assert loader != round1_loader
+    # assert round1_loader == round2_loader
   end
 
   defp query(queryable, _args, test_pid) do
