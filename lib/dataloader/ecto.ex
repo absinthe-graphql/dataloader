@@ -43,7 +43,7 @@ if Code.ensure_loaded?(Ecto) do
 
     When we call `load/4` we can pass in a tuple as the batch key
 
-    ```
+    ```elixir
     loader
     |> Dataloader.load(Accounts, {User, order: :name}, 1)
 
@@ -54,10 +54,14 @@ if Code.ensure_loaded?(Ecto) do
     # this is still supported
     loader
     |> Dataloader.load(Accounts, User, 1)
+
+    # as is this
+    loader
+    |> Dataloader.load(:accounts, :user, :organization)
     ```
 
-    In both cases the `Accounts.query` function would be:
-    ```
+    In all cases the `Accounts.query` function would be:
+    ```elixir
     def query(User, params) do
       field = params[:order] || :id
       from u in User, order_by: [asc: field(u, ^field)]
@@ -74,7 +78,7 @@ if Code.ensure_loaded?(Ecto) do
 
     `default_params` is an extremely useful place to store values like the current user:
 
-    ```
+    ```elixir
     source = Dataloader.Ecto.new(MyApp.Repo, [
       query: &Accounts.query/2,
       default_params: %{current_user: current_user},
