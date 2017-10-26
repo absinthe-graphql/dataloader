@@ -144,6 +144,15 @@ defmodule Dataloader do
     end
   end
 
+  def put(loader, source_name, batch_key, item_key, result) do
+    source =
+      loader
+      |> get_source(source_name)
+      |> Source.put(batch_key, item_key, result)
+
+    put_in(loader.sources[source_name], source)
+  end
+
   @spec pending_batches?(t) :: boolean
   def pending_batches?(loader) do
     Enum.any?(loader.sources, fn {_name, source} -> Source.pending_batches?(source) end)

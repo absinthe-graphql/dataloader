@@ -30,8 +30,8 @@ defmodule Dataloader.KV do
 
   defimpl Dataloader.Source do
     def put(source, batch, id, result) do
-      batches = Map.update(source.batches, batch, %{id => result}, &Map.put(&1, id, result))
-      %{source | batches: batches}
+      results = Map.update(source.results, batch, %{id => result}, &Map.put(&1, id, result))
+      %{source | results: results}
     end
 
     def load(source, batch_key, id) do

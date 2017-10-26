@@ -95,6 +95,44 @@ defmodule Dataloader.EctoTest do
     # assert round1_loader == round2_loader
   end
 
+  test "cache can be warmed", %{loader: loader} do
+    user = %User{username: "Ben Wilson"} |> TestRepo.insert!
+    posts = [
+      %Post{user_id: user.id},
+      %Post{user_id: user.id},
+    ] |> Enum.map(&TestRepo.insert!/1)
+
+    loader = Dataloader.put(loader, Test, :posts, user, posts)
+
+    loader
+    |> Dataloader.load(Test, :posts, user)
+    |> Dataloader.run
+
+    refute_receive(:querying)
+  end
+
+  test "ecto not association loaded struct doesn't warm cache", %{loader: loader} do
+    user = %User{username: "Ben Wilson"} |> TestRepo.insert!
+    posts = [
+      %Post{user_id: user.id},
+      %Post{user_id: user.id},
+    ] |> Enum.map(&TestRepo.insert!/1)
+
+    loader = Dataloader.put(loader, Test, :posts, user, user.posts)
+
+    loader =
+      loader
+      |> Dataloader.load(Test, :posts, user)
+      |> Dataloader.run
+
+    loaded_posts =
+      loader
+      |> Dataloader.get(Test, :posts, user)
+
+    assert posts == loaded_posts
+    assert_receive(:querying)
+  end
+
   defp query(queryable, _args, test_pid) do
     send(test_pid, :querying)
     queryable

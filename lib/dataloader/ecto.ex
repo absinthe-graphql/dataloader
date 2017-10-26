@@ -180,11 +180,14 @@ if Code.ensure_loaded?(Ecto) do
         end
       end
 
+      def put(source, _batch, _item, %Ecto.Association.NotLoaded{}) do
+        source
+      end
       def put(source, batch, item, result) do
         batch = normalize_key(batch, source.default_params)
         {batch_key, item_key, _item} = get_keys(batch, item)
-        batches = Map.update(source.batches, batch_key, %{item_key => result}, &Map.put(&1, item_key, result))
-        %{source | batches: batches}
+        results = Map.update(source.results, batch_key, %{item_key => result}, &Map.put(&1, item_key, result))
+        %{source | results: results}
       end
 
       def load(source, batch, item) do
