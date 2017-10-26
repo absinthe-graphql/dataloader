@@ -163,9 +163,12 @@ if Code.ensure_loaded?(Ecto) do
       import Ecto.Query
 
       def run(source) do
-        results = for batch <- source.batches,
-          into: source.results,
-          do: run_batch(batch, source)
+        results =
+          source.batches
+          |> Dataloader.pmap(&run_batch(&1, source), [
+            timeout: source.options[:timeout] || 15_000,
+            tag: "Ecto batch"
+          ])
         %{source | results: results, batches: %{}}
       end
 
@@ -226,7 +229,7 @@ if Code.ensure_loaded?(Ecto) do
         Invalid: #{inspect key}
         #{inspect item}
 
-        The batch key must either be a queryable, or an association name.
+        The batch key must either be a schema module, or an association name.
         """
       end
 
