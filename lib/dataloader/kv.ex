@@ -29,6 +29,9 @@ defmodule Dataloader.KV do
   end
 
   defimpl Dataloader.Source do
+    def put(source, _batch, _id, nil) do
+      source
+    end
     def put(source, batch, id, result) do
       results = Map.update(source.results, batch, %{id => result}, &Map.put(&1, id, result))
       %{source | results: results}
@@ -47,7 +50,7 @@ defmodule Dataloader.KV do
     end
 
     def fetch(source, batch_key, id) do
-      with {:ok, batch} <- Map.fetch(source, batch_key) do
+      with {:ok, batch} <- Map.fetch(source.results, batch_key) do
         Map.fetch(batch, id)
       end
     end
@@ -55,10 +58,9 @@ defmodule Dataloader.KV do
     def run(source) do
       results =
         source.batches
-        |> Task.async_stream(fn {batch_key, ids} ->
-          source.load_function(batch_key, ids)
-        end, source.opts)
-        |> Map.new
+        |> Dataloader.pmap(fn {batch_key, ids} ->
+          {batch_key, source.load_function.(batch_key, ids)}
+        end, [])
 
       %{source |
         batches: %{},
