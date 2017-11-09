@@ -250,10 +250,14 @@ if Code.ensure_loaded?(Ecto) do
 
         repo_opts = Keyword.put(source.repo_opts, :caller, pid)
 
-        results =
-          query
-          |> source.repo.all(repo_opts)
-          |> Map.new(&{&1.id, &1})
+        results = source.repo.all(query, repo_opts)
+
+        results = case {ids, results} do
+          {[id | _], [%{^primary_key => table_id} | _]} when is_integer(table_id) and is_binary(id) ->
+            Map.new(results, &{Integer.to_string(Map.fetch!(&1, primary_key)), &1})
+          _ ->
+            Map.new(results, &{Map.fetch!(&1, primary_key), &1})
+        end
 
         {key, results}
       end
