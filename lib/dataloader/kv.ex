@@ -44,7 +44,7 @@ defmodule Dataloader.KV do
             nil -> [id]
             ids -> [id | ids]
           end)
-        source ->
+        _ ->
           source
       end
     end
