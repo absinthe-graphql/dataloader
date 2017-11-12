@@ -6,4 +6,6 @@ config :dataloader, Dataloader.TestRepo,
   adapter: Ecto.Adapters.Postgres,
   pool: Ecto.Adapters.SQL.Sandbox
 
+config :dataloader, ecto_repos: [Dataloader.TestRepo]
+
 config :logger, level: :warn

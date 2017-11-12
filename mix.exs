@@ -11,6 +11,7 @@ defmodule Dataloader.Mixfile do
       start_permanent: Mix.env == :prod,
       elixirc_paths: elixirc_paths(Mix.env),
       package: package(),
+      aliases: aliases(),
       docs: [source_ref: "v#{@version}", main: "Dataloader"],
       deps: deps()
     ]
@@ -50,4 +51,12 @@ defmodule Dataloader.Mixfile do
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"},
     ]
   end
+
+  defp aliases do
+    [
+      "ecto.setup": ["ecto.create", "ecto.migrate"],
+      "ecto.reset": ["ecto.drop", "ecto.setup"],
+    ]
+  end
+
 end
