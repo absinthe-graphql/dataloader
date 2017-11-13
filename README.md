@@ -4,6 +4,21 @@ Dataloader provides an easy way efficiently load data in batches. It's inspired
 by https://github.com/facebook/dataloader, although it makes some small API
 changes to better suite Elixir use cases.
 
+## Installation
+
+If [available in Hex](https://hex.pm/docs/publish), the package can be installed
+by adding `dataloader` to your list of dependencies in `mix.exs`:
+
+```elixir
+def deps do
+  [
+    {:dataloader, "~> 1.0.0"}
+  ]
+end
+```
+
+## Usage
+
 Central to Dataloader is the idea of a source. A single Dataloader struct can
 have many different sources, which represent different ways to load data.
 
@@ -44,19 +59,6 @@ more details
 Dataloader ships with two different built in sources. The first is the Ecto source for easily pulling out data with ecto. The other is a simple `KV` key value source. See each module for its respective documentation.
 
 Anything that implements the `Dataloader.Source` protocol can act as a source.
-
-## Installation
-
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `dataloader` to your list of dependencies in `mix.exs`:
-
-```elixir
-def deps do
-  [
-    {:dataloader, "~> 0.1.0"}
-  ]
-end
-```
 
 Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
