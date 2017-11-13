@@ -1,0 +1,15 @@
+language: elixir
+elixir:
+  - 1.5
+otp_release:
+  - 20.1
+sudo: false
+services:
+  - postgresql
+notifications:
+  recipients:
+    - bruce.williams@cargosense.com
+env:
+  - MIX_ENV=test
+before_script:
+  - mix ecto.setup
