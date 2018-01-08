@@ -15,6 +15,7 @@ defmodule Dataloader.KV do
     opts: [],
     batches: %{},
     results: %{},
+    pending?: false,
   ]
 
   def new(load_function, opts \\ []) do
@@ -38,15 +39,17 @@ defmodule Dataloader.KV do
     end
 
     def load(source, batch_key, id) do
-      case fetch(source, batch_key, id) do
-        :error ->
-          update_in(source.batches[batch_key], fn
-            nil -> [id]
-            ids -> [id | ids]
-          end)
-        _ ->
-          source
-      end
+      source =
+        case fetch(source, batch_key, id) do
+          :error ->
+            update_in(source.batches[batch_key], fn
+              nil -> [id]
+              ids -> [id | ids]
+            end)
+          _ ->
+            source
+        end
+      %{source | pending?: true}
     end
 
     def fetch(source, batch_key, id) do
@@ -65,11 +68,12 @@ defmodule Dataloader.KV do
       %{source |
         batches: %{},
         results: Map.merge(source.results, results),
+        pending?: false,
       }
     end
 
     def pending_batches?(source) do
-      source.batches != %{}
+      source.batches != %{} or source.pending?
     end
   end
 end
