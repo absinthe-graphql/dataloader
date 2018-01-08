@@ -74,6 +74,17 @@ defmodule Dataloader.KVTest do
     refute_receive(:querying)
   end
 
+  test "pending_batches? is true when the cache is already warm", %{loader: loader} do
+    loader = Dataloader.put(loader, Test, :users, "ben", @data[:users] |> List.first)
+
+    loader = Dataloader.load(loader, Test, :users, "ben")
+    assert Dataloader.pending_batches?(loader)
+
+    Dataloader.run(loader)
+
+    refute_receive(:querying)
+  end
+
   defp query(batch_key, ids, test_pid) do
     send(test_pid, :querying)
     for item <- @data[batch_key], item[:id] in ids, into: %{} do
