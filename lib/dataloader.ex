@@ -112,20 +112,12 @@ defmodule Dataloader do
     {:error, failures}
   end
 
-  defp collect_failures([{:ok, result} | rest], failures, success) do
+  defp collect_failures([{{:ok, result}, _} | rest], failures, success) do
     collect_failures(rest, failures, [result | success])
   end
 
-  defp collect_failures([{:error, name} | rest], failures, success) do
-    collect_failures(rest, [name | failures], success)
-  end
-
-  defp shutdown_tasks(tasks, refs) do
-    for {task, res} <- tasks do
-      with nil <- res || Task.shutdown(task, :brutal_kill) do
-        {:error, Map.fetch!(refs, task.ref)}
-      end
-    end
+  defp collect_failures([{{:exit, e}, item} | rest], failures, success) do
+    collect_failures(rest, [{item, e} | failures], success)
   end
 
   @spec get(t, source_name, any, any) :: any | no_return()
@@ -170,21 +162,14 @@ defmodule Dataloader do
 
   @doc false
   def pmap(items, fun, opts) do
-    timeout = opts[:timeout] || 15_000
+    options = [
+      timeout: opts[:timeout] || 15_000,
+      on_timeout: :kill_task
+    ]
 
-    {tasks, refs} =
-      items
-      |> Enum.map(fn {name, _} = batch ->
-        task = Task.async(fn -> fun.(batch) end)
-        {task, {task.ref, name}}
-      end)
-      |> Enum.unzip()
-
-    refs = Map.new(refs)
-
-    tasks
-    |> Task.yield_many(timeout)
-    |> shutdown_tasks(refs)
+    items
+    |> Task.async_stream(fun, options)
+    |> Enum.zip(items)
     |> collect_failures
     |> case do
       {:ok, results} ->
@@ -192,7 +177,7 @@ defmodule Dataloader do
 
       {:error, failures} ->
         raise """
-        #{opts[:tag] || "Batch"} did not complete within #{timeout}
+        #{opts[:tag] || "Batch"} did not complete within #{options[:timeout]}
         Timed out: #{inspect(failures)}
         """
     end
