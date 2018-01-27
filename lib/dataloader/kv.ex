@@ -14,16 +14,17 @@ defmodule Dataloader.KV do
     :load_function,
     opts: [],
     batches: %{},
-    results: %{},
+    results: %{}
   ]
 
   def new(load_function, opts \\ []) do
-    max_concurrency = opts[:max_concurrency] || System.schedulers_online * 2
+    max_concurrency = opts[:max_concurrency] || System.schedulers_online() * 2
+
     %__MODULE__{
       load_function: load_function,
       opts: [
         max_concurrency: max_concurrency,
-        timeout: opts[:timeout] || 30_000,
+        timeout: opts[:timeout] || 30_000
       ]
     }
   end
@@ -32,6 +33,7 @@ defmodule Dataloader.KV do
     def put(source, _batch, _id, nil) do
       source
     end
+
     def put(source, batch, id, result) do
       results = Map.update(source.results, batch, %{id => result}, &Map.put(&1, id, result))
       %{source | results: results}
@@ -44,6 +46,7 @@ defmodule Dataloader.KV do
             nil -> [id]
             ids -> [id | ids]
           end)
+
         _ ->
           source
       end
@@ -58,14 +61,14 @@ defmodule Dataloader.KV do
     def run(source) do
       results =
         source.batches
-        |> Dataloader.pmap(fn {batch_key, ids} ->
-          {batch_key, source.load_function.(batch_key, ids)}
-        end, [])
+        |> Dataloader.pmap(
+          fn {batch_key, ids} ->
+            {batch_key, source.load_function.(batch_key, ids)}
+          end,
+          []
+        )
 
-      %{source |
-        batches: %{},
-        results: Map.merge(source.results, results),
-      }
+      %{source | batches: %{}, results: Map.merge(source.results, results)}
     end
 
     def pending_batches?(source) do

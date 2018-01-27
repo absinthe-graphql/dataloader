@@ -20,15 +20,16 @@ defmodule Dataloader.EctoTest do
     users = [
       %{username: "Ben Wilson"}
     ]
+
     TestRepo.insert_all(User, users)
 
     users = TestRepo.all(User)
-    user_ids = users |> Enum.map(&(&1.id))
+    user_ids = users |> Enum.map(& &1.id)
 
     loader =
       loader
       |> Dataloader.load_many(Test, User, user_ids)
-      |> Dataloader.run
+      |> Dataloader.run()
 
     loaded_users =
       loader
@@ -42,22 +43,25 @@ defmodule Dataloader.EctoTest do
     # loading again doesn't query again due to caching
     loader
     |> Dataloader.load_many(Test, User, user_ids)
-    |> Dataloader.run
+    |> Dataloader.run()
 
     refute_receive(:querying)
   end
 
   test "association loading works", %{loader: loader} do
-    user = %User{username: "Ben Wilson"} |> TestRepo.insert!
-    posts = [
-      %Post{user_id: user.id},
-      %Post{user_id: user.id},
-    ] |> Enum.map(&TestRepo.insert!/1)
+    user = %User{username: "Ben Wilson"} |> TestRepo.insert!()
+
+    posts =
+      [
+        %Post{user_id: user.id},
+        %Post{user_id: user.id}
+      ]
+      |> Enum.map(&TestRepo.insert!/1)
 
     loader =
       loader
       |> Dataloader.load(Test, :posts, user)
-      |> Dataloader.run
+      |> Dataloader.run()
 
     loaded_posts =
       loader
@@ -69,61 +73,70 @@ defmodule Dataloader.EctoTest do
     # loading again doesn't query again due to caching
     loader
     |> Dataloader.load(Test, :posts, user)
-    |> Dataloader.run
+    |> Dataloader.run()
 
     refute_receive(:querying)
   end
 
   test "loading something from cache doesn't change the loader", %{loader: loader} do
-    user = %User{username: "Ben Wilson"} |> TestRepo.insert!
-    _ = [
-      %Post{user_id: user.id},
-      %Post{user_id: user.id},
-    ] |> Enum.map(&TestRepo.insert!/1)
+    user = %User{username: "Ben Wilson"} |> TestRepo.insert!()
+
+    _ =
+      [
+        %Post{user_id: user.id},
+        %Post{user_id: user.id}
+      ]
+      |> Enum.map(&TestRepo.insert!/1)
 
     round1_loader =
       loader
       |> Dataloader.load(Test, :posts, user)
-      |> Dataloader.run
+      |> Dataloader.run()
 
     assert ^round1_loader =
-      round1_loader
-      |> Dataloader.load(Test, :posts, user)
-      |> Dataloader.run
+             round1_loader
+             |> Dataloader.load(Test, :posts, user)
+             |> Dataloader.run()
 
     assert loader != round1_loader
     # assert round1_loader == round2_loader
   end
 
   test "cache can be warmed", %{loader: loader} do
-    user = %User{username: "Ben Wilson"} |> TestRepo.insert!
-    posts = [
-      %Post{user_id: user.id},
-      %Post{user_id: user.id},
-    ] |> Enum.map(&TestRepo.insert!/1)
+    user = %User{username: "Ben Wilson"} |> TestRepo.insert!()
+
+    posts =
+      [
+        %Post{user_id: user.id},
+        %Post{user_id: user.id}
+      ]
+      |> Enum.map(&TestRepo.insert!/1)
 
     loader = Dataloader.put(loader, Test, :posts, user, posts)
 
     loader
     |> Dataloader.load(Test, :posts, user)
-    |> Dataloader.run
+    |> Dataloader.run()
 
     refute_receive(:querying)
   end
 
   test "ecto not association loaded struct doesn't warm cache", %{loader: loader} do
-    user = %User{username: "Ben Wilson"} |> TestRepo.insert!
-    posts = [
-      %Post{user_id: user.id},
-      %Post{user_id: user.id},
-    ] |> Enum.map(&TestRepo.insert!/1)
+    user = %User{username: "Ben Wilson"} |> TestRepo.insert!()
+
+    posts =
+      [
+        %Post{user_id: user.id},
+        %Post{user_id: user.id}
+      ]
+      |> Enum.map(&TestRepo.insert!/1)
 
     loader = Dataloader.put(loader, Test, :posts, user, user.posts)
 
     loader =
       loader
       |> Dataloader.load(Test, :posts, user)
-      |> Dataloader.run
+      |> Dataloader.run()
 
     loaded_posts =
       loader

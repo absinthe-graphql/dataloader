@@ -114,23 +114,24 @@ if Code.ensure_loaded?(Ecto) do
       batches: %{},
       results: %{},
       default_params: %{},
-      options: [],
+      options: []
     ]
 
     @type t :: %__MODULE__{
-      repo: Ecto.Repo.t,
-      query: query_fun,
-      repo_opts: Keyword.t,
-      batches: map,
-      results: map,
-      default_params: map,
-      options: Keyword.t
-    }
+            repo: Ecto.Repo.t(),
+            query: query_fun,
+            repo_opts: Keyword.t(),
+            batches: map,
+            results: map,
+            default_params: map,
+            options: Keyword.t()
+          }
 
-    @type query_fun :: (Ecto.Queryable.t, any -> Ecto.Queryable.t)
-    @type opt :: {:query, query_fun}
-      | {:repo_opts, Keyword.t}
-      | {:timeout, pos_integer}
+    @type query_fun :: (Ecto.Queryable.t(), any -> Ecto.Queryable.t())
+    @type opt ::
+            {:query, query_fun}
+            | {:repo_opts, Keyword.t()}
+            | {:timeout, pos_integer}
 
     @doc """
     Create an Ecto Dataloader source.
@@ -146,7 +147,7 @@ if Code.ensure_loaded?(Ecto) do
     Dataloader.Ecto.new(MyApp.Repo, repo_opts: [prefix: "tenant"])
     ```
     """
-    @spec new(Ecto.Repo.t, [opt]) :: t
+    @spec new(Ecto.Repo.t(), [opt]) :: t
     def new(repo, opts \\ []) do
       data = Keyword.put(opts, :query, opts[:query] || &query/2)
       opts = Keyword.take(opts, [:timeout])
@@ -165,16 +166,19 @@ if Code.ensure_loaded?(Ecto) do
       def run(source) do
         results =
           source.batches
-          |> Dataloader.pmap(&run_batch(&1, source), [
+          |> Dataloader.pmap(
+            &run_batch(&1, source),
             timeout: source.options[:timeout] || 15_000,
             tag: "Ecto batch"
-          ])
+          )
+
         %{source | results: results, batches: %{}}
       end
 
       def fetch(%{results: results} = source, batch, item) do
         batch = normalize_key(batch, source.default_params)
         {batch_key, item_key, _item} = get_keys(batch, item)
+
         with {:ok, batch} <- Map.fetch(results, batch_key) do
           Map.fetch(batch, item_key)
         end
@@ -183,10 +187,19 @@ if Code.ensure_loaded?(Ecto) do
       def put(source, _batch, _item, %Ecto.Association.NotLoaded{}) do
         source
       end
+
       def put(source, batch, item, result) do
         batch = normalize_key(batch, source.default_params)
         {batch_key, item_key, _item} = get_keys(batch, item)
-        results = Map.update(source.results, batch_key, %{item_key => result}, &Map.put(&1, item_key, result))
+
+        results =
+          Map.update(
+            source.results,
+            batch_key,
+            %{item_key => result},
+            &Map.put(&1, item_key, result)
+          )
+
         %{source | results: results}
       end
 
@@ -196,9 +209,11 @@ if Code.ensure_loaded?(Ecto) do
             batch = normalize_key(batch, source.default_params)
             {batch_key, item_key, item} = get_keys(batch, item)
             entry = {item_key, item}
+
             update_in(source.batches, fn batches ->
               Map.update(batches, batch_key, [entry], &[entry | &1])
             end)
+
           _ ->
             source
         end
@@ -212,25 +227,29 @@ if Code.ensure_loaded?(Ecto) do
         primary_keys = schema.__schema__(:primary_key)
         id = Enum.map(primary_keys, &Map.get(record, &1))
 
-        {queryable, field} = case schema.__schema__(:association, assoc_field) do
-          %{queryable: queryable, field: field} ->
-            {queryable, field}
-          val ->
-            raise """
-            Valid association #{assoc_field} not found on schema #{inspect schema}
-            Got: #{inspect val}
-            """
-        end
+        {queryable, field} =
+          case schema.__schema__(:association, assoc_field) do
+            %{queryable: queryable, field: field} ->
+              {queryable, field}
+
+            val ->
+              raise """
+              Valid association #{assoc_field} not found on schema #{inspect(schema)}
+              Got: #{inspect(val)}
+              """
+          end
 
         {{:assoc, self(), field, queryable, opts}, id, record}
       end
+
       defp get_keys({queryable, opts}, id) when is_atom(queryable) do
         {{:queryable, self(), queryable, opts}, id, id}
       end
+
       defp get_keys(key, item) do
         raise """
-        Invalid: #{inspect key}
-        #{inspect item}
+        Invalid: #{inspect(key)}
+        #{inspect(item)}
 
         The batch key must either be a schema module, or an association name.
         """
@@ -239,28 +258,32 @@ if Code.ensure_loaded?(Ecto) do
       defp normalize_key({key, params}, default_params) do
         {key, Enum.into(params, default_params)}
       end
+
       defp normalize_key(key, default_params), do: {key, default_params}
 
       defp run_batch({{:queryable, pid, queryable, opts} = key, ids}, source) do
         {ids, _} = Enum.unzip(ids)
         [primary_key] = queryable.__schema__(:primary_key)
         query = source.query.(queryable, opts)
-        query = from s in query,
-          where: field(s, ^primary_key) in ^ids
+        query = from(s in query, where: field(s, ^primary_key) in ^ids)
 
         repo_opts = Keyword.put(source.repo_opts, :caller, pid)
 
         results = source.repo.all(query, repo_opts)
 
-        results = case {ids, results} do
-          {[id | _], [%{^primary_key => table_id} | _]} when is_integer(table_id) and is_binary(id) ->
-            Map.new(results, &{Integer.to_string(Map.fetch!(&1, primary_key)), &1})
-          _ ->
-            Map.new(results, &{Map.fetch!(&1, primary_key), &1})
-        end
+        results =
+          case {ids, results} do
+            {[id | _], [%{^primary_key => table_id} | _]}
+            when is_integer(table_id) and is_binary(id) ->
+              Map.new(results, &{Integer.to_string(Map.fetch!(&1, primary_key)), &1})
+
+            _ ->
+              Map.new(results, &{Map.fetch!(&1, primary_key), &1})
+          end
 
         {key, results}
       end
+
       defp run_batch({{:assoc, pid, field, queryable, opts} = key, records}, source) do
         {ids, records} = Enum.unzip(records)
 

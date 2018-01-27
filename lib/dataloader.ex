@@ -41,17 +41,15 @@ defmodule Dataloader do
   enforce data access rules within each context. See the `DataLoader.Ecto`
   moduledocs for more details
   """
-  defstruct [
-    sources: %{},
-    options: [],
-  ]
+  defstruct sources: %{},
+            options: []
 
   alias Dataloader.Source
 
   @type t :: %__MODULE__{
-    sources: %{source_name => Dataloader.Source.t},
-    options: [option],
-  }
+          sources: %{source_name => Dataloader.Source.t()},
+          options: [option]
+        }
 
   @type option :: {:timeout, pos_integer}
   @type source_name :: any
@@ -59,7 +57,7 @@ defmodule Dataloader do
   @spec new([option]) :: t
   def new(opts \\ []), do: %__MODULE__{options: opts}
 
-  @spec add_source(t, source_name, Dataloader.Source.t) :: t
+  @spec add_source(t, source_name, Dataloader.Source.t()) :: t
   def add_source(%{sources: sources} = loader, name, source) do
     sources = Map.put(sources, name, source)
     %{loader | sources: sources}
@@ -88,13 +86,16 @@ defmodule Dataloader do
   def run(dataloader) do
     if pending_batches?(dataloader) do
       fun = fn {name, source} -> {name, Source.run(source)} end
+
       sources =
         dataloader.sources
-        |> pmap(fun, [
+        |> pmap(
+          fun,
           tag: "Source",
           timeout: dataloader.options[:timeout] || 15_000
-        ])
-        |> Map.new
+        )
+        |> Map.new()
+
       %{dataloader | sources: sources}
     else
       dataloader
@@ -102,15 +103,19 @@ defmodule Dataloader do
   end
 
   defp collect_failures(tasks_and_results, failures \\ [], success \\ [])
+
   defp collect_failures([], [] = _failures, success) do
     {:ok, Map.new(success)}
   end
+
   defp collect_failures([], failures, _acc) do
     {:error, failures}
   end
+
   defp collect_failures([{:ok, result} | rest], failures, success) do
     collect_failures(rest, failures, [result | success])
   end
+
   defp collect_failures([{:error, name} | rest], failures, success) do
     collect_failures(rest, [name | failures], success)
   end
@@ -137,6 +142,7 @@ defmodule Dataloader do
   @spec get_many(t, source_name, any, any) :: [any] | no_return()
   def get_many(loader, source, batch_key, item_keys) when is_list(item_keys) do
     source = get_source(loader, source)
+
     for key <- item_keys do
       source
       |> Source.fetch(batch_key, key)
@@ -159,19 +165,20 @@ defmodule Dataloader do
   end
 
   defp get_source(loader, source_name) do
-    loader.sources[source_name] || raise "Source does not exist: #{inspect source_name}"
+    loader.sources[source_name] || raise "Source does not exist: #{inspect(source_name)}"
   end
 
   @doc false
   def pmap(items, fun, opts) do
     timeout = opts[:timeout] || 15_000
+
     {tasks, refs} =
       items
       |> Enum.map(fn {name, _} = batch ->
         task = Task.async(fn -> fun.(batch) end)
         {task, {task.ref, name}}
       end)
-      |> Enum.unzip
+      |> Enum.unzip()
 
     refs = Map.new(refs)
 
@@ -182,12 +189,12 @@ defmodule Dataloader do
     |> case do
       {:ok, results} ->
         results
+
       {:error, failures} ->
         raise """
         #{opts[:tag] || "Batch"} did not complete within #{timeout}
-        Timed out: #{inspect failures}
+        Timed out: #{inspect(failures)}
         """
     end
   end
-
 end
