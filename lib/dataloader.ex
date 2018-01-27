@@ -120,14 +120,6 @@ defmodule Dataloader do
     collect_failures(rest, [{item, e} | failures], success)
   end
 
-  defp shutdown_tasks(tasks, refs) do
-    for {task, res} <- tasks do
-      with nil <- res || Task.shutdown(task, :brutal_kill) do
-        {:error, Map.fetch!(refs, task.ref)}
-      end
-    end
-  end
-
   @spec get(t, source_name, any, any) :: any | no_return()
   def get(loader, source, batch_key, item_key) do
     loader
