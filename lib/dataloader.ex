@@ -44,6 +44,7 @@ defmodule Dataloader do
   defstruct sources: %{},
             options: []
 
+  require Logger
   alias Dataloader.Source
 
   @type t :: %__MODULE__{
@@ -102,24 +103,6 @@ defmodule Dataloader do
     end
   end
 
-  defp collect_failures(tasks_and_results, failures \\ [], success \\ [])
-
-  defp collect_failures([], [] = _failures, success) do
-    {:ok, Map.new(success)}
-  end
-
-  defp collect_failures([], failures, _acc) do
-    {:error, failures}
-  end
-
-  defp collect_failures([{{:ok, result}, _} | rest], failures, success) do
-    collect_failures(rest, failures, [result | success])
-  end
-
-  defp collect_failures([{{:exit, e}, item} | rest], failures, success) do
-    collect_failures(rest, [{item, e} | failures], success)
-  end
-
   @spec get(t, source_name, any, any) :: any | no_return()
   def get(loader, source, batch_key, item_key) do
     loader
@@ -164,22 +147,26 @@ defmodule Dataloader do
   def pmap(items, fun, opts) do
     options = [
       timeout: opts[:timeout] || 15_000,
-      on_timeout: :kill_task
+      on_timeout: :kill_task,
     ]
 
-    items
-    |> Task.async_stream(fun, options)
-    |> Enum.zip(items)
-    |> collect_failures
-    |> case do
-      {:ok, results} ->
-        results
+    {:ok, task_super} = Task.Supervisor.start_link([])
 
-      {:error, failures} ->
-        raise """
-        #{opts[:tag] || "Batch"} did not complete within #{options[:timeout]}
-        Timed out: #{inspect(failures)}
-        """
-    end
+    task = Task.async(fn ->
+      Process.flag(:trap_exit, true)
+
+      task_super
+      |> Task.Supervisor.async_stream(items, fun, options)
+      |> Enum.reduce(%{}, fn
+        {:ok, {key, value}}, results ->
+          Map.put(results, key, value)
+        _, results ->
+          results
+      end)
+    end)
+
+    # The infinity is safe here because the internal
+    # tasks all have their own timeout.
+    Task.await(task, :infinity)
   end
 end
