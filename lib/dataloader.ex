@@ -150,9 +150,18 @@ defmodule Dataloader do
       on_timeout: :kill_task,
     ]
 
+    # This supervisor exists to help ensure that the spawned tasks will die as
+    # promptly as possible if the current process is killed.
     {:ok, task_super} = Task.Supervisor.start_link([])
 
+    # The intermediary task is spawned here so that the `:trap_exit` flag does
+    # not lead to rogue behaviour within the current process. This could happen
+    # if the current process is linked to something, and then that something
+    # does in the middle of us loading stuff.
     task = Task.async(fn ->
+      # The purpose of `:trap_exit` here is so that we can ensure that any failures
+      # within the tasks do not kill the current process. We want to get results
+      # back no matter what.
       Process.flag(:trap_exit, true)
 
       task_super
