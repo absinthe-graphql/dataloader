@@ -99,7 +99,6 @@ defmodule Dataloader.EctoTest do
              |> Dataloader.run()
 
     assert loader != round1_loader
-    # assert round1_loader == round2_loader
   end
 
   test "cache can be warmed", %{loader: loader} do
