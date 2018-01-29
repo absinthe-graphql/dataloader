@@ -147,7 +147,7 @@ defmodule Dataloader do
   def pmap(items, fun, opts) do
     options = [
       timeout: opts[:timeout] || 15_000,
-      on_timeout: :kill_task,
+      on_timeout: :kill_task
     ]
 
     # This supervisor exists to help ensure that the spawned tasks will die as
@@ -158,21 +158,23 @@ defmodule Dataloader do
     # not lead to rogue behaviour within the current process. This could happen
     # if the current process is linked to something, and then that something
     # does in the middle of us loading stuff.
-    task = Task.async(fn ->
-      # The purpose of `:trap_exit` here is so that we can ensure that any failures
-      # within the tasks do not kill the current process. We want to get results
-      # back no matter what.
-      Process.flag(:trap_exit, true)
+    task =
+      Task.async(fn ->
+        # The purpose of `:trap_exit` here is so that we can ensure that any failures
+        # within the tasks do not kill the current process. We want to get results
+        # back no matter what.
+        Process.flag(:trap_exit, true)
 
-      task_super
-      |> Task.Supervisor.async_stream(items, fun, options)
-      |> Enum.reduce(%{}, fn
-        {:ok, {key, value}}, results ->
-          Map.put(results, key, value)
-        _, results ->
-          results
+        task_super
+        |> Task.Supervisor.async_stream(items, fun, options)
+        |> Enum.reduce(%{}, fn
+          {:ok, {key, value}}, results ->
+            Map.put(results, key, value)
+
+          _, results ->
+            results
+        end)
       end)
-    end)
 
     # The infinity is safe here because the internal
     # tasks all have their own timeout.
