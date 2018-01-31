@@ -3,5 +3,7 @@ defmodule Dataloader.Post do
 
   schema "posts" do
     belongs_to(:user, Dataloader.User)
+    field(:title, :string)
+    field(:deleted_at, :utc_datetime)
   end
 end
