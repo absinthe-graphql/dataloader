@@ -110,6 +110,7 @@ if Code.ensure_loaded?(Ecto) do
     defstruct [
       :repo,
       :query,
+      :run_batch,
       repo_opts: [],
       batches: %{},
       results: %{},
@@ -124,14 +125,18 @@ if Code.ensure_loaded?(Ecto) do
             batches: map,
             results: map,
             default_params: map,
+            run_batch: batch_fun,
             options: Keyword.t()
           }
 
     @type query_fun :: (Ecto.Queryable.t(), any -> Ecto.Queryable.t())
+    @type batch_fun :: (Ecto.Queryable.t(), Ecto.Query.t, [any], Keyword.t -> [any])
     @type opt ::
             {:query, query_fun}
             | {:repo_opts, Keyword.t()}
             | {:timeout, pos_integer}
+
+    import Ecto.Query
 
     @doc """
     Create an Ecto Dataloader source.
@@ -149,11 +154,52 @@ if Code.ensure_loaded?(Ecto) do
     """
     @spec new(Ecto.Repo.t(), [opt]) :: t
     def new(repo, opts \\ []) do
-      data = Keyword.put(opts, :query, opts[:query] || &query/2)
+      data =
+        opts
+        |> Keyword.put_new(:query, &query/2)
+        |> Keyword.put_new(:run_batch, &run_batch(repo, &1, &2, &3, &4))
       opts = Keyword.take(opts, [:timeout])
 
       %__MODULE__{repo: repo, options: opts}
       |> struct(data)
+    end
+
+    @doc """
+    Default implementation for loading a batch. Handles looking up records by
+    column
+    """
+    def run_batch(repo, _queryable, query, inputs, repo_opts) do
+      groups = group_by_column(inputs)
+      results = load_rows(groups, query, repo, repo_opts)
+      grouped_results = group_results(results, groups)
+      for [{col, value}] <- inputs do
+        Map.get(grouped_results, {col, value})
+      end
+    end
+
+    defp group_by_column(inputs) do
+      inputs
+      |> MapSet.new # order doesnt matter, so this gets unique a bit faster
+      |> Enum.group_by(fn [{col, _}] -> col end, fn [{_, val}] -> val end)
+    end
+
+    defp load_rows(groups, query, repo, repo_opts) do
+      groups
+      |> Enum.reduce(query, fn {col, values}, query ->
+        query |> or_where([t], field(t, ^col) in ^values)
+      end)
+      |> repo.all(repo_opts)
+    end
+
+    defp group_results(results, groups) do
+      groups
+      |> Map.keys
+      |> Enum.reduce(%{}, fn column, grouped_results ->
+        Enum.reduce(results, grouped_results, fn result, grouped_results ->
+          value = Map.get(result, column)
+          Map.update(grouped_results, {column, value}, result, &[result | List.wrap(&1)])
+        end)
+      end)
     end
 
     defp query(schema, _) do
@@ -161,7 +207,6 @@ if Code.ensure_loaded?(Ecto) do
     end
 
     defimpl Dataloader.Source do
-      import Ecto.Query
 
       def run(source) do
         results =
@@ -242,8 +287,9 @@ if Code.ensure_loaded?(Ecto) do
         {{:assoc, self(), field, queryable, opts}, id, record}
       end
 
-      defp get_keys({queryable, opts}, id) when is_atom(queryable) do
-        {{:queryable, self(), queryable, opts}, id, id}
+      defp get_keys({queryable, opts}, value) when is_atom(queryable) do
+        value = normalize_value(queryable, value)
+        {{:queryable, self(), queryable, opts}, value, value}
       end
 
       defp get_keys(key, item) do
@@ -255,31 +301,33 @@ if Code.ensure_loaded?(Ecto) do
         """
       end
 
+      defp normalize_value(_queryable, value) when is_list(value) or is_map(value) do
+        value
+      end
+      defp normalize_value(queryable, value) do
+        [primary_key] = queryable.__schema__(:primary_key)
+        [{primary_key, value}]
+      end
+
       defp normalize_key({key, params}, default_params) do
         {key, Enum.into(params, default_params)}
       end
 
       defp normalize_key(key, default_params), do: {key, default_params}
 
-      defp run_batch({{:queryable, pid, queryable, opts} = key, ids}, source) do
-        {ids, _} = Enum.unzip(ids)
-        [primary_key] = queryable.__schema__(:primary_key)
+      defp run_batch({{:queryable, pid, queryable, opts} = key, entries}, source) do
+        {_, inputs} = Enum.unzip(entries)
+
         query = source.query.(queryable, opts)
-        query = from(s in query, where: field(s, ^primary_key) in ^ids)
 
         repo_opts = Keyword.put(source.repo_opts, :caller, pid)
 
-        results = source.repo.all(query, repo_opts)
+        results = source.run_batch.(queryable, query, inputs, repo_opts)
 
         results =
-          case {ids, results} do
-            {[id | _], [%{^primary_key => table_id} | _]}
-            when is_integer(table_id) and is_binary(id) ->
-              Map.new(results, &{Integer.to_string(Map.fetch!(&1, primary_key)), &1})
-
-            _ ->
-              Map.new(results, &{Map.fetch!(&1, primary_key), &1})
-          end
+          inputs
+          |> Enum.zip(results)
+          |> Map.new
 
         {key, results}
       end
