@@ -68,11 +68,13 @@ defmodule Dataloader.EctoTest do
   end
 
   test "fancier loading works", %{loader: loader} do
-    user = %User{username: "Ben"} |> Repo.insert!
+    user = %User{username: "Ben"} |> Repo.insert!()
+
     rows = [
       %{user_id: user.id, title: "foo"},
-      %{user_id: user.id, title: "bar", deleted_at: DateTime.utc_now},
+      %{user_id: user.id, title: "bar", deleted_at: DateTime.utc_now()}
     ]
+
     {_, [%{id: post_id} | _]} = Repo.insert_all(Post, rows, returning: [:id])
 
     loader =
@@ -82,10 +84,10 @@ defmodule Dataloader.EctoTest do
 
     assert_receive(:querying)
 
-    assert %Post{} = Dataloader.get(loader, Test, Post, [id: post_id])
+    assert %Post{} = Dataloader.get(loader, Test, Post, id: post_id)
     # this shouldn't be loaded because the `query` fun should filter it out,
     # because it's deleted
-    refute Dataloader.get(loader, Test, Post, [title: "bar"])
+    refute Dataloader.get(loader, Test, Post, title: "bar")
   end
 
   test "association loading works", %{loader: loader} do

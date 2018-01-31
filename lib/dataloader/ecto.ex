@@ -157,7 +157,7 @@ if Code.ensure_loaded?(Ecto) do
       data =
         opts
         |> Keyword.put_new(:query, &query/2)
-        |> Keyword.put_new(:run_batch, &run_batch(repo, &1, &2, &3, &4))
+        |> Keyword.put_new(:run_batch, &run_batch(repo, &1, &2, &3, &4, &5))
 
       opts = Keyword.take(opts, [:timeout])
 
@@ -169,7 +169,7 @@ if Code.ensure_loaded?(Ecto) do
     Default implementation for loading a batch. Handles looking up records by
     column
     """
-    def run_batch(repo, _queryable, query, {col, inputs}, repo_opts) do
+    def run_batch(repo, _queryable, query, col, inputs, repo_opts) do
       results = load_rows(col, inputs, query, repo, repo_opts)
       grouped_results = group_results(results, col)
 
@@ -312,7 +312,7 @@ if Code.ensure_loaded?(Ecto) do
 
         repo_opts = Keyword.put(source.repo_opts, :caller, pid)
 
-        results = source.run_batch.(queryable, query, {col, inputs}, repo_opts)
+        results = source.run_batch.(queryable, query, col, inputs, repo_opts)
 
         results =
           inputs
