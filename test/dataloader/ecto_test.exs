@@ -28,6 +28,7 @@ defmodule Dataloader.EctoTest do
 
     Post
     |> where([p], is_nil(p.deleted_at))
+    |> order_by(asc: :id)
   end
 
   defp query(queryable, _args, test_pid) do

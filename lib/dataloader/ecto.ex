@@ -174,7 +174,10 @@ if Code.ensure_loaded?(Ecto) do
       grouped_results = group_results(results, col)
 
       for value <- inputs do
-        Map.get(grouped_results, value)
+        case Map.get(grouped_results, value) do
+          values when is_list(values) -> Enum.reverse(values)
+          value -> value
+        end
       end
     end
 

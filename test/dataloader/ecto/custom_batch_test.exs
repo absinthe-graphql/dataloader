@@ -53,6 +53,9 @@ defmodule Dataloader.Ecto.CustomBatchTest do
 
     for title <- titles, do: Map.get(results, title)
   end
+  def run_batch(queryable, query, col, inputs, repo_opts) do
+    Dataloader.Ecto.run_batch(Repo, queryable, query, col, inputs, repo_opts)
+  end
 
   test "basic loading of one thing", %{loader: loader} do
     user1 = %User{username: "Ben Wilson"} |> Repo.insert!()
@@ -76,5 +79,23 @@ defmodule Dataloader.Ecto.CustomBatchTest do
       |> Dataloader.run()
 
     assert [user2, user1] == Dataloader.get_many(loader, Test, User, titles)
+  end
+
+  test "basic loading of many things", %{loader: loader} do
+    user1 = %User{username: "Ben Wilson"} |> Repo.insert!()
+    user2 = %User{username: "Ben Wilson"} |> Repo.insert!()
+
+    posts = [
+      %Post{user_id: user1.id, title: "foo"},
+      %Post{user_id: user1.id, title: "baz"},
+      %Post{user_id: user2.id, title: "bar"},
+    ] |> Enum.map(&Repo.insert!/1)
+
+    loader =
+      loader
+      |> Dataloader.load(Test, Post, [user_id: user1.id])
+      |> Dataloader.run()
+
+    assert Enum.take(posts, 2) == Dataloader.get(loader, Test, Post, [user_id: user1.id])
   end
 end
