@@ -123,7 +123,9 @@ defmodule Dataloader.EctoTest do
       loader
       |> Dataloader.load(Test, :user, post1)
       |> Dataloader.load(Test, :user, post2)
-      |> Dataloader.run
+      |> Dataloader.run()
+
+    assert_receive(:querying)
 
     loaded_user1 =
       loader
@@ -133,8 +135,9 @@ defmodule Dataloader.EctoTest do
       loader
       |> Dataloader.get(Test, :user, post2)
 
-    assert user1 == loaded_user1
     assert user2 == loaded_user2
+
+    assert user1 == loaded_user1
   end
 
   test "association loading works", %{loader: loader} do
