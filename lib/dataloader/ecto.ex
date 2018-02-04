@@ -172,9 +172,10 @@ if Code.ensure_loaded?(Ecto) do
             tag: "Ecto batch"
           )
 
-        results = Map.merge(source.results, results, fn _, v1, v2 ->
-          Map.merge(v1, v2)
-        end)
+        results =
+          Map.merge(source.results, results, fn _, v1, v2 ->
+            Map.merge(v1, v2)
+          end)
 
         %{source | results: results, batches: %{}}
       end
@@ -243,7 +244,7 @@ if Code.ensure_loaded?(Ecto) do
               """
           end
 
-        {{:assoc, self(), field, queryable, opts}, id, record}
+        {{:assoc, schema, self(), field, queryable, opts}, id, record}
       end
 
       defp get_keys({queryable, opts}, id) when is_atom(queryable) do
@@ -288,7 +289,7 @@ if Code.ensure_loaded?(Ecto) do
         {key, results}
       end
 
-      defp run_batch({{:assoc, pid, field, queryable, opts} = key, records}, source) do
+      defp run_batch({{:assoc, _schema, pid, field, queryable, opts} = key, records}, source) do
         {ids, records} = Enum.unzip(records)
 
         query = source.query.(queryable, opts)

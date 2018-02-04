@@ -47,51 +47,54 @@ defmodule Dataloader.EctoTest do
 
     refute_receive(:querying)
   end
-  
+
   test "successive loads query only for new info", %{loader: loader} do
     users = [
       %{username: "Ben Wilson"},
-      %{username: "Andy McVitty"},
+      %{username: "Andy McVitty"}
     ]
 
     TestRepo.insert_all(User, users)
-
     [user1, user2] = TestRepo.all(User)
+
+    [post1, post2] =
+      [
+        %Post{user_id: user1.id},
+        %Post{user_id: user2.id}
+      ]
+      |> Enum.map(&TestRepo.insert!/1)
 
     loader =
       loader
-      |> Dataloader.load(Test, User, user1.id)
+      |> Dataloader.load(Test, :user, post1)
       |> Dataloader.run()
 
     loaded_user =
       loader
-      |> Dataloader.get(Test, User, user1.id)
+      |> Dataloader.get(Test, :user, post1)
 
     assert_receive(:querying)
 
     assert user1 == loaded_user
 
-    # loading both users queries again (only for second user (confirmed from log))
     loader =
       loader
-      |> Dataloader.load(Test, User, user1.id)
-      |> Dataloader.load(Test, User, user2.id)
+      |> Dataloader.load(Test, :user, post1)
+      |> Dataloader.load(Test, :user, post2)
       |> Dataloader.run()
+
     assert_receive(:querying)
 
-    # And we should now be able to get both user1 and user2 from the cache
-    # (However, this is the odd behavior - we can't get user1 any more!)
     loaded_user1 =
       loader
-      |> Dataloader.get(Test, User, user1.id)
+      |> Dataloader.get(Test, :user, post1)
 
     loaded_user2 =
       loader
-      |> Dataloader.get(Test, User, user2.id)
+      |> Dataloader.get(Test, :user, post2)
 
     assert user2 == loaded_user2
-    
-    # This assert fails; loaded_user 1 is nil
+
     assert user1 == loaded_user1
   end
 
