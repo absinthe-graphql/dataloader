@@ -47,6 +47,53 @@ defmodule Dataloader.EctoTest do
 
     refute_receive(:querying)
   end
+  
+  test "successive loads query only for new info", %{loader: loader} do
+    users = [
+      %{username: "Ben Wilson"},
+      %{username: "Andy McVitty"},
+    ]
+
+    TestRepo.insert_all(User, users)
+
+    [user1, user2] = TestRepo.all(User)
+
+    loader =
+      loader
+      |> Dataloader.load(Test, User, user1.id)
+      |> Dataloader.run()
+
+    loaded_user =
+      loader
+      |> Dataloader.get(Test, User, user1.id)
+
+    assert_receive(:querying)
+
+    assert user1 == loaded_user
+
+    # loading both users queries again (only for second user (confirmed from log))
+    loader =
+      loader
+      |> Dataloader.load(Test, User, user1.id)
+      |> Dataloader.load(Test, User, user2.id)
+      |> Dataloader.run()
+    assert_receive(:querying)
+
+    # And we should now be able to get both user1 and user2 from the cache
+    # (However, this is the odd behavior - we can't get user1 any more!)
+    loaded_user1 =
+      loader
+      |> Dataloader.get(Test, User, user1.id)
+
+    loaded_user2 =
+      loader
+      |> Dataloader.get(Test, User, user2.id)
+
+    assert user2 == loaded_user2
+    
+    # This assert fails; loaded_user 1 is nil
+    assert user1 == loaded_user1
+  end
 
   test "association loading works", %{loader: loader} do
     user = %User{username: "Ben Wilson"} |> TestRepo.insert!()

@@ -172,6 +172,10 @@ if Code.ensure_loaded?(Ecto) do
             tag: "Ecto batch"
           )
 
+        results = Map.merge(source.results, results, fn _, v1, v2 ->
+          Map.merge(v1, v2)
+        end)
+
         %{source | results: results, batches: %{}}
       end
 
