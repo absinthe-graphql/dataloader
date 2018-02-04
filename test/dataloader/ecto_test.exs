@@ -91,6 +91,52 @@ defmodule Dataloader.EctoTest do
     refute Dataloader.get(loader, Test, Post, title: "bar")
   end
 
+  test "successive loads query only for new info", %{loader: loader} do
+    [user1, user2] =
+      [
+        %User{username: "Ben Wilson"},
+        %User{username: "Andy McVitty"}
+      ]
+      |> Enum.map(&Repo.insert!/1)
+
+    [post1, post2] =
+      [
+        %Post{user_id: user1.id},
+        %Post{user_id: user2.id}
+      ]
+      |> Enum.map(&Repo.insert!/1)
+
+    loader =
+      loader
+      |> Dataloader.load(Test, :user, post1)
+      |> Dataloader.run()
+
+    loaded_user =
+      loader
+      |> Dataloader.get(Test, :user, post1)
+
+    assert_receive(:querying)
+
+    assert user1 == loaded_user
+
+    loader =
+      loader
+      |> Dataloader.load(Test, :user, post1)
+      |> Dataloader.load(Test, :user, post2)
+      |> Dataloader.run
+
+    loaded_user1 =
+      loader
+      |> Dataloader.get(Test, :user, post1)
+
+    loaded_user2 =
+      loader
+      |> Dataloader.get(Test, :user, post2)
+
+    assert user1 == loaded_user1
+    assert user2 == loaded_user2
+  end
+
   test "association loading works", %{loader: loader} do
     user = %User{username: "Ben Wilson"} |> Repo.insert!()
 
