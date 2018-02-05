@@ -1,7 +1,7 @@
 defmodule Dataloader.EctoTest do
   use ExUnit.Case, async: true
 
-  alias Dataloader.{TestRepo, User, Post}
+  alias Dataloader.{TestRepo, User, Post, Comment}
 
   setup do
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(TestRepo)
@@ -195,6 +195,38 @@ defmodule Dataloader.EctoTest do
     assert_receive(:querying)
   end
 
+  test "can traverse 'through' associations", %{loader: loader} do
+    user = %User{username: "Ben Wilson"} |> TestRepo.insert!()
+    [post1, post2] =
+      [
+        %Post{user_id: user.id},
+        %Post{user_id: user.id}
+      ]
+      |> Enum.map(&TestRepo.insert!/1)
+    [
+      %Comment{post_id: post1.id, user_id: user.id},
+      %Comment{post_id: post2.id, user_id: user.id }
+    ]
+    |> Enum.map(&TestRepo.insert!/1)
+    
+    # First demonstrate that we can load directly in ecto
+    comments_from_ecto = TestRepo.preload(user, :commented_posts).commented_posts
+    
+    assert Enum.count(comments_from_ecto) == 2
+
+    # Next demonstrate that Dataloader chokes on it
+    loader =
+      loader
+      |> Dataloader.load(Test, :commented_posts, user)
+      |> Dataloader.run()
+    
+    comments_from_loader =
+      loader
+      |> Dataloader.get(Test, :commented_posts, user)
+    assert comments_from_ecto == comments_from_loader
+    
+  end
+  
   defp query(queryable, _args, test_pid) do
     send(test_pid, :querying)
     queryable
