@@ -68,7 +68,7 @@ defmodule Dataloader.EctoTest do
     refute_receive(:querying)
   end
 
-  test "fancier loading works", %{loader: loader} do
+  test "loading with cardinalty works", %{loader: loader} do
     user = %User{username: "Ben"} |> Repo.insert!()
 
     rows = [
@@ -81,7 +81,7 @@ defmodule Dataloader.EctoTest do
     loader =
       loader
       |> Dataloader.load(Test, {:one, Post}, id: post_id)
-      |> Dataloader.load(Test, {:many, Post}, title: "bar")
+      |> Dataloader.load(Test, {:one, Post}, title: "bar")
       |> Dataloader.run()
 
     assert_receive(:querying)
@@ -213,7 +213,7 @@ defmodule Dataloader.EctoTest do
     refute_receive(:querying)
   end
 
-  test "ecto not association loaded struct doesn't warm cache", %{loader: loader} do
+  test "%EctoAssociationNotLoaded{} struct doesn't warm cache", %{loader: loader} do
     user = %User{username: "Ben Wilson"} |> Repo.insert!()
 
     posts =

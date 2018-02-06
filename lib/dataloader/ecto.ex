@@ -367,7 +367,7 @@ if Code.ensure_loaded?(Ecto) do
 
         repo_opts = Keyword.put(source.repo_opts, :caller, pid)
 
-        cardinality_mapper = cardinality_mapper(cardinality)
+        cardinality_mapper = cardinality_mapper(cardinality, queryable)
 
         results =
           queryable
@@ -398,17 +398,17 @@ if Code.ensure_loaded?(Ecto) do
         {key, Map.new(Enum.zip(ids, results))}
       end
 
-      defp cardinality_mapper(:many) do
+      defp cardinality_mapper(:many, _) do
         fn value ->
           value
         end
       end
 
-      defp cardinality_mapper(:one) do
+      defp cardinality_mapper(:one, queryable) do
         fn
           [] -> nil
           [value] -> value
-          [_ | _] -> raise "expected one but got many"
+          other -> raise Ecto.MultipleResultsError, queryable: queryable, count: length(other)
         end
       end
     end
