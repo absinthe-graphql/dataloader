@@ -3,6 +3,9 @@ defmodule Dataloader.Post do
 
   schema "posts" do
     belongs_to(:user, Dataloader.User)
+    has_many(:likes, Dataloader.Like)
+    has_many(:liking_users, through: [:likes, :user])
+
     field(:title, :string)
     field(:deleted_at, :utc_datetime)
   end

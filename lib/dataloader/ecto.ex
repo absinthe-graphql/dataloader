@@ -264,23 +264,33 @@ if Code.ensure_loaded?(Ecto) do
         batches != %{}
       end
 
+      defp chase_down_queryable([field], schema) do
+        case schema.__schema__(:association, field) do
+          %{queryable: queryable} ->
+            queryable
+          %Ecto.Association.HasThrough{through: through} ->
+            chase_down_queryable(through, schema)
+          val ->
+            raise """
+            Valid association #{field} not found on schema #{inspect(schema)}
+            Got: #{inspect(val)}
+            """
+        end
+      end
+      defp chase_down_queryable([field | fields], schema) do
+        case schema.__schema__(:association, field) do
+          %{queryable: queryable} ->
+            chase_down_queryable(fields, queryable)
+        end
+      end
+
       defp get_keys({assoc_field, opts}, %schema{} = record) when is_atom(assoc_field) do
         primary_keys = schema.__schema__(:primary_key)
         id = Enum.map(primary_keys, &Map.get(record, &1))
 
-        {queryable, field} =
-          case schema.__schema__(:association, assoc_field) do
-            %{queryable: queryable, field: field} ->
-              {queryable, field}
+        queryable = chase_down_queryable([assoc_field], schema)
 
-            val ->
-              raise """
-              Valid association #{assoc_field} not found on schema #{inspect(schema)}
-              Got: #{inspect(val)}
-              """
-          end
-
-        {{:assoc, schema, self(), field, queryable, opts}, id, record}
+        {{:assoc, schema, self(), assoc_field, queryable, opts}, id, record}
       end
 
       defp get_keys({{cardinality, queryable}, opts}, value) when is_atom(queryable) do
@@ -311,6 +321,7 @@ if Code.ensure_loaded?(Ecto) do
         case queryable.__schema__(:primary_key) do
           [^col] ->
             {:primary, col, value}
+
           _ ->
             {:not_primary, col, value}
         end

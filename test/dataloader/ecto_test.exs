@@ -1,7 +1,7 @@
 defmodule Dataloader.EctoTest do
   use ExUnit.Case, async: true
 
-  alias Dataloader.{User, Post}
+  alias Dataloader.{User, Post, Like}
   import Ecto.Query
   alias Dataloader.TestRepo, as: Repo
 
@@ -244,9 +244,35 @@ defmodule Dataloader.EctoTest do
     assert Dataloader.load(loader, Test, {User, %{foo: :bar}}, 1)
     assert Dataloader.load(loader, Test, {:one, User}, 1)
 
-    %{message: message} = assert_raise(RuntimeError, fn ->
-      Dataloader.load(loader, Test, {User, %{foo: :bar}}, username: 1)
-    end)
+    %{message: message} =
+      assert_raise(RuntimeError, fn ->
+        Dataloader.load(loader, Test, {User, %{foo: :bar}}, username: 1)
+      end)
+
     assert message =~ "cardinality"
+  end
+
+  test "works with has many through", %{loader: loader} do
+    user1 = %User{username: "Ben Wilson"} |> Repo.insert!()
+    user2 = %User{username: "Bruce Williams"} |> Repo.insert!()
+
+    post1 = %Post{user_id: user1.id} |> Repo.insert!()
+
+    [
+      %Like{user_id: user1.id, post_id: post1.id},
+      %Like{user_id: user2.id, post_id: post1.id}
+    ]
+    |> Enum.map(&Repo.insert/1)
+
+    loader =
+      loader
+      |> Dataloader.load(Test, :liking_users, post1)
+      |> Dataloader.run()
+
+    loaded_posts =
+      loader
+      |> Dataloader.get(Test, :liking_users, post1)
+
+    assert length(loaded_posts) == 2
   end
 end
