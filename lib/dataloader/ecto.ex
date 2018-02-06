@@ -268,8 +268,10 @@ if Code.ensure_loaded?(Ecto) do
         case schema.__schema__(:association, field) do
           %{queryable: queryable} ->
             queryable
+
           %Ecto.Association.HasThrough{through: through} ->
             chase_down_queryable(through, schema)
+
           val ->
             raise """
             Valid association #{field} not found on schema #{inspect(schema)}
@@ -277,6 +279,7 @@ if Code.ensure_loaded?(Ecto) do
             """
         end
       end
+
       defp chase_down_queryable([field | fields], schema) do
         case schema.__schema__(:association, field) do
           %{queryable: queryable} ->
