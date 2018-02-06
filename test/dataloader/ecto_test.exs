@@ -80,15 +80,16 @@ defmodule Dataloader.EctoTest do
 
     loader =
       loader
-      |> Dataloader.load_many(Test, Post, [[id: post_id], [title: "bar"]])
+      |> Dataloader.load(Test, {:one, Post}, id: post_id)
+      |> Dataloader.load(Test, {:many, Post}, title: "bar")
       |> Dataloader.run()
 
     assert_receive(:querying)
 
-    assert %Post{} = Dataloader.get(loader, Test, Post, id: post_id)
+    assert %Post{} = Dataloader.get(loader, Test, {:one, Post}, id: post_id)
     # this shouldn't be loaded because the `query` fun should filter it out,
     # because it's deleted
-    refute Dataloader.get(loader, Test, Post, title: "bar")
+    refute Dataloader.get(loader, Test, {:one, Post}, title: "bar")
   end
 
   test "successive loads query only for new info", %{loader: loader} do
@@ -235,5 +236,17 @@ defmodule Dataloader.EctoTest do
 
     assert posts == loaded_posts
     assert_receive(:querying)
+  end
+
+  test "we handle a variety of key possibilities", %{loader: loader} do
+    assert Dataloader.load(loader, Test, {:one, User, %{foo: :bar}}, 1)
+    # we accept too many things
+    assert Dataloader.load(loader, Test, {User, %{foo: :bar}}, 1)
+    assert Dataloader.load(loader, Test, {:one, User}, 1)
+
+    %{message: message} = assert_raise(RuntimeError, fn ->
+      Dataloader.load(loader, Test, {User, %{foo: :bar}}, username: 1)
+    end)
+    assert message =~ "cardinality"
   end
 end

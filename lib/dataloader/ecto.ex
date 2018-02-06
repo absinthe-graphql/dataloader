@@ -174,10 +174,9 @@ if Code.ensure_loaded?(Ecto) do
       grouped_results = group_results(results, col)
 
       for value <- inputs do
-        case Map.get(grouped_results, value) do
-          values when is_list(values) -> Enum.reverse(values)
-          value -> value
-        end
+        grouped_results
+        |> Map.get(value, [])
+        |> Enum.reverse()
       end
     end
 
@@ -191,7 +190,7 @@ if Code.ensure_loaded?(Ecto) do
       results
       |> Enum.reduce(%{}, fn result, grouped ->
         value = Map.get(result, col)
-        Map.update(grouped, value, result, &[result | List.wrap(&1)])
+        Map.update(grouped, value, [result], &[result | &1])
       end)
     end
 
@@ -284,9 +283,19 @@ if Code.ensure_loaded?(Ecto) do
         {{:assoc, schema, self(), field, queryable, opts}, id, record}
       end
 
+      defp get_keys({{cardinality, queryable}, opts}, value) when is_atom(queryable) do
+        {_, col, value} = normalize_value(queryable, value)
+        {{:queryable, self(), queryable, cardinality, col, opts}, value, value}
+      end
+
       defp get_keys({queryable, opts}, value) when is_atom(queryable) do
-        {col, value} = normalize_value(queryable, value)
-        {{:queryable, self(), queryable, col, opts}, value, value}
+        case normalize_value(queryable, value) do
+          {:primary, col, value} ->
+            {{:queryable, self(), queryable, :one, col, opts}, value, value}
+
+          _ ->
+            raise "cardinality required unless using primary key"
+        end
       end
 
       defp get_keys(key, item) do
@@ -298,29 +307,58 @@ if Code.ensure_loaded?(Ecto) do
         """
       end
 
-      defp normalize_value(_queryable, [value]) when is_tuple(value) do
-        value
+      defp normalize_value(queryable, [{col, value}]) do
+        case queryable.__schema__(:primary_key) do
+          [^col] ->
+            {:primary, col, value}
+          _ ->
+            {:not_primary, col, value}
+        end
       end
 
       defp normalize_value(queryable, value) do
         [primary_key] = queryable.__schema__(:primary_key)
-        {primary_key, value}
+        {:primary, primary_key, value}
+      end
+
+      # This code was totally OK until cardinalities showed up. Now it's ugly :(
+      # It is however correct, which is nice.
+      @cardinalities [:one, :many]
+
+      defp normalize_key({cardinality, queryable}, default_params)
+           when cardinality in @cardinalities do
+        normalize_key({{cardinality, queryable}, []}, default_params)
+      end
+
+      defp normalize_key({cardinality, queryable, params}, default_params)
+           when cardinality in @cardinalities do
+        normalize_key({{cardinality, queryable}, params}, default_params)
       end
 
       defp normalize_key({key, params}, default_params) do
         {key, Enum.into(params, default_params)}
       end
 
-      defp normalize_key(key, default_params), do: {key, default_params}
+      defp normalize_key(key, default_params) do
+        {key, default_params}
+      end
 
-      defp run_batch({{:queryable, pid, queryable, col, opts} = key, entries}, source) do
+      defp run_batch(
+             {{:queryable, pid, queryable, cardinality, col, opts} = key, entries},
+             source
+           ) do
         inputs = Enum.map(entries, &elem(&1, 0))
 
         query = source.query.(queryable, opts)
 
         repo_opts = Keyword.put(source.repo_opts, :caller, pid)
 
-        results = source.run_batch.(queryable, query, col, inputs, repo_opts)
+        cardinality_mapper = cardinality_mapper(cardinality)
+
+        results =
+          queryable
+          |> source.run_batch.(query, col, inputs, repo_opts)
+          |> Enum.map(cardinality_mapper)
 
         results =
           inputs
@@ -344,6 +382,20 @@ if Code.ensure_loaded?(Ecto) do
           |> Enum.map(&Map.get(&1, field))
 
         {key, Map.new(Enum.zip(ids, results))}
+      end
+
+      defp cardinality_mapper(:many) do
+        fn value ->
+          value
+        end
+      end
+
+      defp cardinality_mapper(:one) do
+        fn
+          [] -> nil
+          [value] -> value
+          [_ | _] -> raise "expected one but got many"
+        end
       end
     end
   end
