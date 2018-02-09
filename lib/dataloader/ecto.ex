@@ -268,6 +268,7 @@ if Code.ensure_loaded?(Ecto) do
 
       defp run_batch({{:queryable, pid, queryable, opts} = key, ids}, source) do
         {ids, _} = Enum.unzip(ids)
+        ids = Enum.uniq ids
         [primary_key] = queryable.__schema__(:primary_key)
         query = source.query.(queryable, opts)
         query = from(s in query, where: field(s, ^primary_key) in ^ids)
