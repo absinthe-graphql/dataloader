@@ -98,6 +98,13 @@ defmodule Dataloader.EctoTest do
     assert user1 == loaded_user1
   end
 
+  test "load same key multi times only adds to batches once", %{loader: loader} do
+    loader_called_once = Dataloader.load(loader, Test, User, 1)
+    loader_called_twice = Dataloader.load(loader_called_once, Test, User, 1)
+    
+    assert loader_called_once == loader_called_twice
+  end
+  
   test "association loading works", %{loader: loader} do
     user = %User{username: "Ben Wilson"} |> TestRepo.insert!()
 
