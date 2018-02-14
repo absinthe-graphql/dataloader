@@ -4,7 +4,7 @@ defmodule Dataloader do
 
   Dataloader provides an easy way efficiently load data in batches. It's
   inspired by https://github.com/facebook/dataloader, although it makes some
-  small API changes to better suite Elixir use cases.
+  small API changes to better suit Elixir use cases.
 
   Central to Dataloader is the idea of a source. A single Dataloader struct can
   have many different sources, which represent different ways to load data.
