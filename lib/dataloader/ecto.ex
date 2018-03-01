@@ -382,7 +382,7 @@ if Code.ensure_loaded?(Ecto) do
         {key, results}
       end
 
-      defp run_batch({{:assoc, _schema, pid, field, queryable, opts} = key, records}, source) do
+      defp run_batch({{:assoc, schema, pid, field, queryable, opts} = key, records}, source) do
         {ids, records} = Enum.unzip(records)
 
         query = source.query.(queryable, opts)
@@ -390,8 +390,11 @@ if Code.ensure_loaded?(Ecto) do
 
         repo_opts = Keyword.put(source.repo_opts, :caller, pid)
 
+        empty = schema |> struct |> Map.fetch!(field)
+
         results =
           records
+          |> Enum.map(&Map.put(&1, field, empty))
           |> source.repo.preload([{field, query}], repo_opts)
           |> Enum.map(&Map.get(&1, field))
 
