@@ -294,4 +294,18 @@ defmodule Dataloader.EctoTest do
     assert_receive(:querying)
     assert loaded_user.username != post.user.username
   end
+
+  test "load same key multi times only adds to batches once", %{loader: loader} do
+    loader_called_once = Dataloader.load(loader, Test, User, 1)
+    loader_called_twice = Dataloader.load(loader_called_once, Test, User, 1)
+
+    assert loader_called_once == loader_called_twice
+
+    user = %User{username: "Ben Wilson"} |> Repo.insert!()
+
+    loader_called_once = Dataloader.load(loader, Test, :posts, user)
+    loader_called_twice = Dataloader.load(loader_called_once, Test, :posts, user)
+
+    assert loader_called_once == loader_called_twice
+  end
 end

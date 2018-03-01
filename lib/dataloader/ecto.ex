@@ -252,7 +252,7 @@ if Code.ensure_loaded?(Ecto) do
             entry = {item_key, item}
 
             update_in(source.batches, fn batches ->
-              Map.update(batches, batch_key, [entry], &[entry | &1])
+              Map.update(batches, batch_key, MapSet.new([entry]), &MapSet.put(&1, entry))
             end)
 
           _ ->
