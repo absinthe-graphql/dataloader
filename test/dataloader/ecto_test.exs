@@ -276,6 +276,25 @@ defmodule Dataloader.EctoTest do
     assert length(loaded_posts) == 2
   end
 
+  test "preloads aren't used", %{loader: loader} do
+    user = %User{username: "Ben Wilson"} |> Repo.insert!()
+    post =
+      %Post{user_id: user.id}
+      |> Repo.insert!()
+      |> Repo.preload([:user])
+
+    post = put_in(post.user.username, "foo")
+
+    loaded_user =
+      loader
+      |> Dataloader.load(Test, :user, post)
+      |> Dataloader.run()
+      |> Dataloader.get(Test, :user, post)
+
+    assert_receive(:querying)
+    assert loaded_user.username != post.user.username
+  end
+
   test "load same key multi times only adds to batches once", %{loader: loader} do
     loader_called_once = Dataloader.load(loader, Test, User, 1)
     loader_called_twice = Dataloader.load(loader_called_once, Test, User, 1)
