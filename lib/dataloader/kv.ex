@@ -11,6 +11,7 @@ defmodule Dataloader.KV do
   """
 
   defstruct [
+    :name,
     :load_function,
     opts: [],
     batches: %{},
@@ -30,6 +31,8 @@ defmodule Dataloader.KV do
   end
 
   defimpl Dataloader.Source do
+    def merge(_, _), do: raise("Merge not supported on KV yet")
+
     def put(source, _batch, _id, nil) do
       source
     end

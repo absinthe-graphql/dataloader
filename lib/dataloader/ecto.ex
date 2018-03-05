@@ -108,6 +108,7 @@ if Code.ensure_loaded?(Ecto) do
     """
 
     defstruct [
+      :name,
       :repo,
       :query,
       :run_batch,
@@ -160,8 +161,9 @@ if Code.ensure_loaded?(Ecto) do
         |> Keyword.put_new(:run_batch, &run_batch(repo, &1, &2, &3, &4, &5))
 
       opts = Keyword.take(opts, [:timeout])
+      {name, opts} = Keyword.pop(opts, :name, nil)
 
-      %__MODULE__{repo: repo, options: opts}
+      %__MODULE__{repo: repo, options: opts, name: name}
       |> struct(data)
     end
 
@@ -199,6 +201,26 @@ if Code.ensure_loaded?(Ecto) do
     end
 
     defimpl Dataloader.Source do
+      defp merge_results(results_a, results_b) do
+        Map.merge(results_a, results_b, fn _, v1, v2 ->
+          Map.merge(v1, v2)
+        end)
+      end
+
+      defp merge_batches(batches_a, batches_b) do
+        Map.merge(batches_a, batches_b, fn _, v1, v2 ->
+          MapSet.union(v1, v2)
+        end)
+      end
+
+      def merge(source_a, source_b) do
+        %{
+          source_a
+          | results: merge_results(source_a.results, source_b.results),
+            batches: merge_batches(source_a.batches, source_b.batches)
+        }
+      end
+
       def run(source) do
         results =
           source.batches
@@ -208,12 +230,7 @@ if Code.ensure_loaded?(Ecto) do
             tag: "Ecto batch"
           )
 
-        results =
-          Map.merge(source.results, results, fn _, v1, v2 ->
-            Map.merge(v1, v2)
-          end)
-
-        %{source | results: results, batches: %{}}
+        %{source | results: merge_results(source.results, results), batches: %{}}
       end
 
       def fetch(%{results: results} = source, batch, item) do
@@ -293,18 +310,18 @@ if Code.ensure_loaded?(Ecto) do
 
         queryable = chase_down_queryable([assoc_field], schema)
 
-        {{:assoc, schema, self(), assoc_field, queryable, opts}, id, record}
+        {{:assoc, schema, assoc_field, queryable, opts}, id, record}
       end
 
       defp get_keys({{cardinality, queryable}, opts}, value) when is_atom(queryable) do
         {_, col, value} = normalize_value(queryable, value)
-        {{:queryable, self(), queryable, cardinality, col, opts}, value, value}
+        {{:queryable, queryable, cardinality, col, opts}, value, value}
       end
 
       defp get_keys({queryable, opts}, value) when is_atom(queryable) do
         case normalize_value(queryable, value) do
           {:primary, col, value} ->
-            {{:queryable, self(), queryable, :one, col, opts}, value, value}
+            {{:queryable, queryable, :one, col, opts}, value, value}
 
           _ ->
             raise "cardinality required unless using primary key"
@@ -358,20 +375,18 @@ if Code.ensure_loaded?(Ecto) do
       end
 
       defp run_batch(
-             {{:queryable, pid, queryable, cardinality, col, opts} = key, entries},
+             {{:queryable, queryable, cardinality, col, opts} = key, entries},
              source
            ) do
         inputs = Enum.map(entries, &elem(&1, 0))
 
         query = source.query.(queryable, opts)
 
-        repo_opts = Keyword.put(source.repo_opts, :caller, pid)
-
         cardinality_mapper = cardinality_mapper(cardinality, queryable)
 
         results =
           queryable
-          |> source.run_batch.(query, col, inputs, repo_opts)
+          |> source.run_batch.(query, col, inputs, source.repo_opts)
           |> Enum.map(cardinality_mapper)
 
         results =
@@ -382,20 +397,18 @@ if Code.ensure_loaded?(Ecto) do
         {key, results}
       end
 
-      defp run_batch({{:assoc, schema, pid, field, queryable, opts} = key, records}, source) do
+      defp run_batch({{:assoc, schema, field, queryable, opts} = key, records}, source) do
         {ids, records} = Enum.unzip(records)
 
         query = source.query.(queryable, opts)
         query = Ecto.Queryable.to_query(query)
-
-        repo_opts = Keyword.put(source.repo_opts, :caller, pid)
 
         empty = schema |> struct |> Map.fetch!(field)
 
         results =
           records
           |> Enum.map(&Map.put(&1, field, empty))
-          |> source.repo.preload([{field, query}], repo_opts)
+          |> source.repo.preload([{field, query}], source.repo_opts)
           |> Enum.map(&Map.get(&1, field))
 
         {key, Map.new(Enum.zip(ids, results))}

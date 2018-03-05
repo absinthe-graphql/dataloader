@@ -41,7 +41,9 @@ defmodule Dataloader do
   enforce data access rules within each context. See the `DataLoader.Ecto`
   moduledocs for more details
   """
+
   defstruct sources: %{},
+            callback_results: %{},
             options: []
 
   require Logger
@@ -49,6 +51,7 @@ defmodule Dataloader do
 
   @type t :: %__MODULE__{
           sources: %{source_name => Dataloader.Source.t()},
+          callback_results: map,
           options: [option]
         }
 
@@ -60,7 +63,13 @@ defmodule Dataloader do
 
   @spec add_source(t, source_name, Dataloader.Source.t()) :: t
   def add_source(%{sources: sources} = loader, name, source) do
-    sources = Map.put(sources, name, source)
+    sources = Map.put(sources, name, %{source | name: name})
+    %{loader | sources: sources}
+  end
+
+  def add_source(%{sources: sources} = loader, source) do
+    if !source.name, do: raise("The source does not have a name")
+    sources = Map.put(sources, source.name, source)
     %{loader | sources: sources}
   end
 
@@ -83,24 +92,111 @@ defmodule Dataloader do
     Enum.reduce(vals, source, &Source.load(&2, batch_key, &1))
   end
 
-  @spec run(t) :: t | no_return
-  def run(dataloader) do
-    if pending_batches?(dataloader) do
-      fun = fn {name, source} -> {name, Source.run(source)} end
+  # defp merge_sources(source_a, source_b) do
+  #   if Map.get(source_a, :__struct__) != Map.get(source_b, :__struct__),
+  #     do: raise("Trying to merge two dataloaders structs that are not the same")
 
-      sources =
-        dataloader.sources
-        |> pmap(
-          fun,
-          tag: "Source",
-          timeout: dataloader.options[:timeout] || 15_000
-        )
-        |> Map.new()
+  #   Source.merge(source_a, source_b)
+  # end
 
-      %{dataloader | sources: sources}
-    else
-      dataloader
+  defp merge_dataloaders([dataloader]), do: dataloader
+
+  defp merge_dataloaders([dataloader_1, dataloader_2 | dataloaders]) do
+    if Map.keys(dataloader_1.sources) != Map.keys(dataloader_2.sources),
+      do: raise("Unable to merge dataloaders, dataloaders contain different sources")
+
+    merge_dataloaders([
+      %{
+        dataloader_1
+        | sources:
+            Enum.zip(dataloader_1.sources, dataloader_2.sources)
+            |> Enum.map(fn {{source_name, source_1}, {_, source_2}} ->
+              {source_name, Source.merge(source_1, source_2)}
+            end)
+            |> Map.new()
+      }
+      | dataloaders
+    ])
+  end
+
+  defp get_callback_result(_dataloader, res = %__MODULE__.Value{lazy?: false}), do: res
+
+  defp get_callback_result(dataloader, %__MODULE__.Value{lazy?: true, callback: callback}) do
+    case Map.fetch(dataloader.callback_results, callback) do
+      {:ok, value = %__MODULE__.Value{}} ->
+        value
+
+      {:ok, non_wrapped_value} ->
+        %__MODULE__.Value{lazy?: false, value: non_wrapped_value, dataloader: dataloader}
+
+      :error ->
+        raise("Callback result not found")
     end
+  end
+
+  def evaluate(results) when is_list(results) do
+    {dataloaders, callbacks} = results |> Enum.map(&{&1.dataloader, &1.callback}) |> Enum.unzip()
+
+    callbacks = Enum.filter(callbacks, & &1)
+
+    dataloader = merge_dataloaders(dataloaders)
+    dataloader = run(dataloader, callbacks)
+
+    results = Enum.map(results, &get_callback_result(dataloader, &1))
+
+    if callbacks == [] do
+      results
+    else
+      evaluate(results)
+    end
+  end
+
+  def evaluate(res = %__MODULE__.Value{lazy?: false}), do: res
+
+  def evaluate(res = %__MODULE__.Value{lazy?: true, dataloader: dataloader, callback: callback}) do
+    dataloader = run(dataloader, [callback])
+
+    get_callback_result(dataloader, res)
+    |> evaluate()
+  end
+
+  def get_value(%__MODULE__.Value{value: value, lazy?: false}), do: value
+
+  def get_value(%__MODULE__.Value{value: value, lazy?: true}),
+    do: value |> evaluate |> get_value()
+
+  def get_value(values) when is_list(values) do
+    values |> evaluate |> Enum.map(&get_value(&1))
+  end
+
+  @spec run(t) :: t | no_return
+  def run(dataloader, callbacks \\ []) do
+    dataloader =
+      if pending_batches?(dataloader) do
+        fun = fn {name, source} ->
+          {name, Source.run(source)}
+        end
+
+        sources =
+          dataloader.sources
+          |> pmap(
+            fun,
+            tag: "Source",
+            timeout: dataloader.options[:timeout] || 15_000
+          )
+          |> Map.new()
+
+        %{dataloader | sources: sources}
+      else
+        dataloader
+      end
+
+    Enum.reduce(callbacks, dataloader, fn callback, dataloader ->
+      %{
+        dataloader
+        | callback_results: Map.put(dataloader.callback_results, callback, callback.(dataloader))
+      }
+    end)
   end
 
   @spec get(t, source_name, any, any) :: any | no_return()
@@ -133,6 +229,12 @@ defmodule Dataloader do
 
     put_in(loader.sources[source_name], source)
   end
+
+  def callback(dataloader, callback) do
+    %__MODULE__.Value{lazy?: true, callback: callback, dataloader: dataloader}
+  end
+
+  # def get_value(%__MODULE__.Value)
 
   @spec pending_batches?(t) :: boolean
   def pending_batches?(loader) do

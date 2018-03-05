@@ -1,5 +1,5 @@
 defmodule Dataloader.Ecto.CustomBatchTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Dataloader.{User, Post}
   import Ecto.Query
@@ -7,6 +7,7 @@ defmodule Dataloader.Ecto.CustomBatchTest do
 
   setup do
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(Repo)
+    Ecto.Adapters.SQL.Sandbox.mode(Repo, {:shared, self()})
 
     test_pid = self()
 

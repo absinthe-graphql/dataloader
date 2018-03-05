@@ -1,5 +1,5 @@
 defmodule Dataloader.EctoTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Dataloader.{User, Post, Like}
   import Ecto.Query
@@ -7,6 +7,7 @@ defmodule Dataloader.EctoTest do
 
   setup do
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(Repo)
+    Ecto.Adapters.SQL.Sandbox.mode(Repo, {:shared, self()})
 
     test_pid = self()
 
@@ -34,6 +35,21 @@ defmodule Dataloader.EctoTest do
   defp query(queryable, _args, test_pid) do
     send(test_pid, :querying)
     queryable
+  end
+
+  test "test new add source API" do
+    source =
+      Dataloader.Ecto.new(
+        Repo,
+        query: &query(&1, &2, self()),
+        name: Test
+      )
+
+    loader =
+      Dataloader.new()
+      |> Dataloader.add_source(source)
+
+    assert %{Test => %{}} = loader.sources
   end
 
   test "basic loading works", %{loader: loader} do
@@ -278,6 +294,7 @@ defmodule Dataloader.EctoTest do
 
   test "preloads aren't used", %{loader: loader} do
     user = %User{username: "Ben Wilson"} |> Repo.insert!()
+
     post =
       %Post{user_id: user.id}
       |> Repo.insert!()
@@ -307,5 +324,66 @@ defmodule Dataloader.EctoTest do
     loader_called_twice = Dataloader.load(loader_called_once, Test, :posts, user)
 
     assert loader_called_once == loader_called_twice
+  end
+
+  test "evaluate lazy value, one level", %{loader: loader} do
+    user = %User{username: "Jaap Frolich"} |> Repo.insert!()
+
+    result =
+      loader
+      |> Dataloader.load(Test, User, user.id)
+      |> Dataloader.callback(fn loader ->
+        Dataloader.get(loader, Test, User, user.id)
+      end)
+
+    assert %Dataloader.Value{} = result
+
+    assert Dataloader.evaluate(result).value.username == "Jaap Frolich"
+  end
+
+  test "evaluate lazy values, two levels", %{loader: loader} do
+    user_1 = %User{username: "Ben Wilson"} |> Repo.insert!()
+    user_2 = %User{username: "Jaap Frolich"} |> Repo.insert!()
+
+    result =
+      loader
+      |> Dataloader.load(Test, User, user_1.id)
+      |> Dataloader.callback(fn loader ->
+        ret_user_1 = Dataloader.get(loader, Test, User, user_1.id)
+
+        loader
+        |> Dataloader.load(Test, User, user_2.id)
+        |> Dataloader.callback(fn loader ->
+          ret_user_2 = Dataloader.get(loader, Test, User, user_2.id)
+          [ret_user_1, ret_user_2]
+        end)
+      end)
+
+    assert [%{id: user_1_id}, %{id: user_2_id}] = Dataloader.evaluate(result).value
+    assert user_1_id == user_1.id
+    assert user_2_id == user_2.id
+  end
+
+  test "evaluate list of lazy values", %{loader: loader} do
+    user_1 = %User{username: "Ben Wilson"} |> Repo.insert!()
+    user_2 = %User{username: "Jaap Frolich"} |> Repo.insert!()
+
+    result_1 =
+      loader
+      |> Dataloader.load(Test, User, user_1.id)
+      |> Dataloader.callback(fn loader ->
+        Dataloader.get(loader, Test, User, user_1.id)
+      end)
+
+    result_2 =
+      result_1.dataloader
+      |> Dataloader.load(Test, User, user_2.id)
+      |> Dataloader.callback(fn loader ->
+        Dataloader.get(loader, Test, User, user_2.id)
+      end)
+
+    assert [%{id: user_1_id}, %{id: user_2_id}] = Dataloader.get_value([result_1, result_2])
+    assert user_1_id == user_1.id
+    assert user_2_id == user_2.id
   end
 end
