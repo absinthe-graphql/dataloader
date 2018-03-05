@@ -92,20 +92,13 @@ defmodule Dataloader do
     Enum.reduce(vals, source, &Source.load(&2, batch_key, &1))
   end
 
-  # defp merge_sources(source_a, source_b) do
-  #   if Map.get(source_a, :__struct__) != Map.get(source_b, :__struct__),
-  #     do: raise("Trying to merge two dataloaders structs that are not the same")
+  defp merge([dataloader]), do: dataloader
 
-  #   Source.merge(source_a, source_b)
-  # end
-
-  defp merge_dataloaders([dataloader]), do: dataloader
-
-  defp merge_dataloaders([dataloader_1, dataloader_2 | dataloaders]) do
+  defp merge([dataloader_1, dataloader_2 | dataloaders]) do
     if Map.keys(dataloader_1.sources) != Map.keys(dataloader_2.sources),
       do: raise("Unable to merge dataloaders, dataloaders contain different sources")
 
-    merge_dataloaders([
+    merge([
       %{
         dataloader_1
         | sources:
@@ -121,13 +114,46 @@ defmodule Dataloader do
 
   defp get_callback_result(_dataloader, res = %__MODULE__.Value{lazy?: false}), do: res
 
-  defp get_callback_result(dataloader, %__MODULE__.Value{lazy?: true, callback: callback}) do
-    case Map.fetch(dataloader.callback_results, callback) do
+  defp get_callback_result(
+         dataloader,
+         res = %__MODULE__.Value{
+           lazy?: true,
+           callback: nil,
+           value: value,
+           chained_callbacks: [chained_callback | chained_callbacks]
+         }
+       ) do
+    case Map.fetch(dataloader.callback_results, {chained_callback, value}) do
       {:ok, value = %__MODULE__.Value{}} ->
-        value
+        %{value | chained_callbacks: chained_callbacks}
 
       {:ok, non_wrapped_value} ->
-        %__MODULE__.Value{lazy?: false, value: non_wrapped_value, dataloader: dataloader}
+        %__MODULE__.Value{res | value: non_wrapped_value, chained_callbacks: chained_callbacks}
+
+      :error ->
+        raise("Chained callback not found!")
+    end
+  end
+
+  defp get_callback_result(
+         dataloader,
+         res = %__MODULE__.Value{
+           lazy?: true,
+           callback: callback,
+           chained_callbacks: chained_callbacks
+         }
+       ) do
+    case Map.fetch(dataloader.callback_results, callback) do
+      {:ok, value = %__MODULE__.Value{}} ->
+        %{value | chained_callbacks: chained_callbacks}
+
+      {:ok, non_wrapped_value} ->
+        %__MODULE__.Value{
+          res
+          | lazy?: chained_callbacks != [],
+            value: non_wrapped_value,
+            callback: nil
+        }
 
       :error ->
         raise("Callback result not found")
@@ -135,12 +161,25 @@ defmodule Dataloader do
   end
 
   def evaluate(results) when is_list(results) do
-    {dataloaders, callbacks} = results |> Enum.map(&{&1.dataloader, &1.callback}) |> Enum.unzip()
+    dataloaders = Enum.map(results, & &1.dataloader)
 
-    callbacks = Enum.filter(callbacks, & &1)
+    callbacks =
+      Enum.map(results, fn
+        %{lazy?: true, chained_callbacks: [chained_callback | _], callback: nil, value: value} ->
+          {chained_callback, value}
 
-    dataloader = merge_dataloaders(dataloaders)
-    dataloader = run(dataloader, callbacks)
+        %{lazy?: true, callback: callback} ->
+          callback
+
+        _ ->
+          nil
+      end)
+      |> Enum.filter(& &1)
+
+    dataloader =
+      dataloaders
+      |> merge()
+      |> run(callbacks)
 
     results = Enum.map(results, &get_callback_result(dataloader, &1))
 
@@ -152,6 +191,21 @@ defmodule Dataloader do
   end
 
   def evaluate(res = %__MODULE__.Value{lazy?: false}), do: res
+
+  def evaluate(
+        res = %__MODULE__.Value{
+          lazy?: true,
+          value: value,
+          callback: nil,
+          chained_callbacks: [chained_callback | _chained_callbacks],
+          dataloader: dataloader
+        }
+      ) do
+    dataloader = run(dataloader, [{chained_callback, value}])
+
+    get_callback_result(dataloader, res)
+    |> evaluate()
+  end
 
   def evaluate(res = %__MODULE__.Value{lazy?: true, dataloader: dataloader, callback: callback}) do
     dataloader = run(dataloader, [callback])
@@ -191,10 +245,25 @@ defmodule Dataloader do
         dataloader
       end
 
+    callbacks =
+      callbacks
+      |> Enum.map(fn callback ->
+        if !dataloader.callback_results[callback], do: callback
+      end)
+      |> Enum.filter(& &1)
+
     Enum.reduce(callbacks, dataloader, fn callback, dataloader ->
       %{
         dataloader
-        | callback_results: Map.put(dataloader.callback_results, callback, callback.(dataloader))
+        | callback_results:
+            Map.put(
+              dataloader.callback_results,
+              callback,
+              case callback do
+                {callback, value} -> callback.(value, dataloader)
+                callback -> callback.(dataloader)
+              end
+            )
       }
     end)
   end
@@ -228,6 +297,16 @@ defmodule Dataloader do
       |> Source.put(batch_key, item_key, result)
 
     put_in(loader.sources[source_name], source)
+  end
+
+  def callback(
+        prev = %__MODULE__.Value{lazy?: true, chained_callbacks: chained_callbacks},
+        chained_callback
+      ) do
+    %{
+      prev
+      | chained_callbacks: Enum.reverse([chained_callback | chained_callbacks])
+    }
   end
 
   def callback(dataloader, callback) do
