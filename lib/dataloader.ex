@@ -160,7 +160,12 @@ defmodule Dataloader do
     end
   end
 
-  def evaluate(results) when is_list(results) do
+  def evaluate(results, opts \\ [])
+
+  def evaluate([], _), do: []
+
+  def evaluate(results, opts) when is_list(results) do
+    single_pass = opts[:single_pass]
     dataloaders = Enum.map(results, & &1.dataloader)
 
     callbacks =
@@ -183,14 +188,14 @@ defmodule Dataloader do
 
     results = Enum.map(results, &get_callback_result(dataloader, &1))
 
-    if callbacks == [] do
+    if callbacks == [] || single_pass do
       results
     else
       evaluate(results)
     end
   end
 
-  def evaluate(res = %__MODULE__.Value{lazy?: false}), do: res
+  def evaluate(res = %__MODULE__.Value{lazy?: false}, _), do: res
 
   def evaluate(
         res = %__MODULE__.Value{
@@ -199,19 +204,35 @@ defmodule Dataloader do
           callback: nil,
           chained_callbacks: [chained_callback | _chained_callbacks],
           dataloader: dataloader
-        }
+        },
+        opts
       ) do
+    single_pass = opts[:single_pass]
     dataloader = run(dataloader, [{chained_callback, value}])
 
-    get_callback_result(dataloader, res)
-    |> evaluate()
+    result = get_callback_result(dataloader, res)
+
+    if single_pass do
+      result
+    else
+      evaluate(result)
+    end
   end
 
-  def evaluate(res = %__MODULE__.Value{lazy?: true, dataloader: dataloader, callback: callback}) do
+  def evaluate(
+        res = %__MODULE__.Value{lazy?: true, dataloader: dataloader, callback: callback},
+        opts
+      ) do
+    single_pass = opts[:single_pass]
     dataloader = run(dataloader, [callback])
 
-    get_callback_result(dataloader, res)
-    |> evaluate()
+    result = get_callback_result(dataloader, res)
+
+    if single_pass do
+      result
+    else
+      evaluate(result)
+    end
   end
 
   def get_value(%__MODULE__.Value{value: value, lazy?: false}), do: value
