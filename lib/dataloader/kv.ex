@@ -31,7 +31,26 @@ defmodule Dataloader.KV do
   end
 
   defimpl Dataloader.Source do
-    def merge(_, _), do: raise("Merge not supported on KV yet")
+    # def merge(_, _), do: raise("Merge not supported on KV yet")
+    defp merge_results(results_a, results_b) do
+      Map.merge(results_a, results_b, fn _, v1, v2 ->
+        Map.merge(v1, v2)
+      end)
+    end
+
+    defp merge_batches(batches_a, batches_b) do
+      Map.merge(batches_a, batches_b, fn _, v1, v2 ->
+        v1 ++ v2
+      end)
+    end
+
+    def merge(source_a, source_b) do
+      %{
+        source_a
+        | results: merge_results(source_a.results, source_b.results),
+          batches: merge_batches(source_a.batches, source_b.batches)
+      }
+    end
 
     def put(source, _batch, _id, nil) do
       source
