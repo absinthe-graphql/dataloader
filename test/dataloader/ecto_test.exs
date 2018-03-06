@@ -393,6 +393,29 @@ defmodule Dataloader.EctoTest do
 
     result =
       loader
+      |> Dataloader.load(Test, User, user_1.id)
+      |> Dataloader.on_load(fn loader ->
+        Dataloader.get(loader, Test, User, user_1.id)
+      end)
+      |> Dataloader.then(fn %{value: prev, dataloader: loader} ->
+        Dataloader.load(loader, Test, User, user_2.id)
+        |> Dataloader.on_load(fn loader ->
+          ret_user_2 = Dataloader.get(loader, Test, User, user_2.id)
+          [prev, ret_user_2]
+        end)
+      end)
+
+    assert [%{id: user_1_id}, %{id: user_2_id}] = Dataloader.evaluate(result).value
+    assert user_1_id == user_1.id
+    assert user_2_id == user_2.id
+  end
+
+  test "evaluate chaining of callbacks (nested)", %{loader: loader} do
+    user_1 = %User{username: "Ben Wilson"} |> Repo.insert!()
+    user_2 = %User{username: "Jaap Frolich"} |> Repo.insert!()
+
+    result =
+      loader
       |> Dataloader.on_load(fn loader ->
         loader
         |> Dataloader.load(Test, User, user_1.id)
