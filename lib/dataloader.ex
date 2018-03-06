@@ -312,7 +312,7 @@ defmodule Dataloader do
     put_in(loader.sources[source_name], source)
   end
 
-  def callback(
+  def on_load(
         prev = %__MODULE__.Value{lazy?: true, chained_callbacks: chained_callbacks},
         chained_callback
       ) do
@@ -322,7 +322,7 @@ defmodule Dataloader do
     }
   end
 
-  def callback(dataloader, callback) do
+  def on_load(dataloader, callback) do
     %__MODULE__.Value{lazy?: true, callback: callback, dataloader: dataloader}
   end
 

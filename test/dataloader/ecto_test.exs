@@ -332,7 +332,7 @@ defmodule Dataloader.EctoTest do
     result =
       loader
       |> Dataloader.load(Test, User, user.id)
-      |> Dataloader.callback(fn loader ->
+      |> Dataloader.on_load(fn loader ->
         Dataloader.get(loader, Test, User, user.id)
       end)
 
@@ -348,12 +348,12 @@ defmodule Dataloader.EctoTest do
     result =
       loader
       |> Dataloader.load(Test, User, user_1.id)
-      |> Dataloader.callback(fn loader ->
+      |> Dataloader.on_load(fn loader ->
         ret_user_1 = Dataloader.get(loader, Test, User, user_1.id)
 
         loader
         |> Dataloader.load(Test, User, user_2.id)
-        |> Dataloader.callback(fn loader ->
+        |> Dataloader.on_load(fn loader ->
           ret_user_2 = Dataloader.get(loader, Test, User, user_2.id)
           [ret_user_1, ret_user_2]
         end)
@@ -371,14 +371,14 @@ defmodule Dataloader.EctoTest do
     result_1 =
       loader
       |> Dataloader.load(Test, User, user_1.id)
-      |> Dataloader.callback(fn loader ->
+      |> Dataloader.on_load(fn loader ->
         Dataloader.get(loader, Test, User, user_1.id)
       end)
 
     result_2 =
       result_1.dataloader
       |> Dataloader.load(Test, User, user_2.id)
-      |> Dataloader.callback(fn loader ->
+      |> Dataloader.on_load(fn loader ->
         Dataloader.get(loader, Test, User, user_2.id)
       end)
 
@@ -393,16 +393,16 @@ defmodule Dataloader.EctoTest do
 
     result =
       loader
-      |> Dataloader.callback(fn loader ->
+      |> Dataloader.on_load(fn loader ->
         loader
         |> Dataloader.load(Test, User, user_1.id)
-        |> Dataloader.callback(fn loader ->
+        |> Dataloader.on_load(fn loader ->
           Dataloader.get(loader, Test, User, user_1.id)
         end)
       end)
-      |> Dataloader.callback(fn prev, loader ->
+      |> Dataloader.on_load(fn prev, loader ->
         Dataloader.load(loader, Test, User, user_2.id)
-        |> Dataloader.callback(fn loader ->
+        |> Dataloader.on_load(fn loader ->
           ret_user_2 = Dataloader.get(loader, Test, User, user_2.id)
           [prev, ret_user_2]
         end)
