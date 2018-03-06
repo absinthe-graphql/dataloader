@@ -400,7 +400,7 @@ defmodule Dataloader.EctoTest do
           Dataloader.get(loader, Test, User, user_1.id)
         end)
       end)
-      |> Dataloader.on_load(fn prev, loader ->
+      |> Dataloader.then(fn %{value: prev, dataloader: loader} ->
         Dataloader.load(loader, Test, User, user_2.id)
         |> Dataloader.on_load(fn loader ->
           ret_user_2 = Dataloader.get(loader, Test, User, user_2.id)

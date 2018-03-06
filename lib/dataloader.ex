@@ -236,6 +236,17 @@ defmodule Dataloader do
     values |> evaluate |> Enum.map(&get_value(&1))
   end
 
+  defp build_non_lazy(_dataloader, %__MODULE__.Value{lazy?: true}),
+    do: raise("expected evaluated value")
+
+  defp build_non_lazy(_dataloader, val = %__MODULE__.Value{}) do
+    val
+  end
+
+  defp build_non_lazy(dataloader, val) do
+    %__MODULE__.Value{value: val, dataloader: dataloader, lazy?: false}
+  end
+
   @spec run(t) :: t | no_return
   def run(dataloader, callbacks \\ []) do
     dataloader =
@@ -273,7 +284,7 @@ defmodule Dataloader do
               dataloader.callback_results,
               callback,
               case callback do
-                {callback, value} -> callback.(value, dataloader)
+                {callback, value} -> callback.(build_non_lazy(dataloader, value))
                 callback -> callback.(dataloader)
               end
             )
@@ -312,7 +323,7 @@ defmodule Dataloader do
     put_in(loader.sources[source_name], source)
   end
 
-  def on_load(
+  def then(
         prev = %__MODULE__.Value{lazy?: true, chained_callbacks: chained_callbacks},
         chained_callback
       ) do
