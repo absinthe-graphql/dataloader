@@ -74,6 +74,15 @@ defmodule Dataloader do
   end
 
   @spec load_many(t, source_name, any, [any]) :: t | no_return()
+  def load_many(source_name, batch_key, vals) do
+    Dataloader.Deferrable.new()
+    |> load_many(source_name, batch_key, vals)
+  end
+
+  def load_many(deferrable = %Dataloader.Deferrable{}, source_name, batch_key, vals) do
+    Dataloader.Deferrable.add_operation(deferrable, {:load_many, [source_name, batch_key, vals]})
+  end
+
   def load_many(loader, source_name, batch_key, vals) when is_list(vals) do
     source =
       loader
@@ -84,6 +93,15 @@ defmodule Dataloader do
   end
 
   @spec load(t, source_name, any, any) :: t | no_return()
+  def load(source_name, batch_key, val) do
+    Dataloader.Deferrable.new()
+    |> load(source_name, batch_key, val)
+  end
+
+  def load(deferrable = %Dataloader.Deferrable{}, source_name, batch_key, val) do
+    Dataloader.Deferrable.add_operation(deferrable, {:load, [source_name, batch_key, val]})
+  end
+
   def load(loader, source_name, batch_key, val) do
     load_many(loader, source_name, batch_key, [val])
   end
@@ -92,163 +110,163 @@ defmodule Dataloader do
     Enum.reduce(vals, source, &Source.load(&2, batch_key, &1))
   end
 
-  defp merge([dataloader]), do: dataloader
+  # defp merge([dataloader]), do: dataloader
 
-  defp merge([dataloader_1, dataloader_2 | dataloaders]) do
-    if Map.keys(dataloader_1.sources) != Map.keys(dataloader_2.sources),
-      do: raise("Unable to merge dataloaders, dataloaders contain different sources")
+  # defp merge([dataloader_1, dataloader_2 | dataloaders]) do
+  #   if Map.keys(dataloader_1.sources) != Map.keys(dataloader_2.sources),
+  #     do: raise("Unable to merge dataloaders, dataloaders contain different sources")
 
-    merge([
-      %{
-        dataloader_1
-        | sources:
-            Enum.zip(dataloader_1.sources, dataloader_2.sources)
-            |> Enum.map(fn {{source_name, source_1}, {_, source_2}} ->
-              {source_name, Source.merge(source_1, source_2)}
-            end)
-            |> Map.new()
-      }
-      | dataloaders
-    ])
-  end
+  #   merge([
+  #     %{
+  #       dataloader_1
+  #       | sources:
+  #           Enum.zip(dataloader_1.sources, dataloader_2.sources)
+  #           |> Enum.map(fn {{source_name, source_1}, {_, source_2}} ->
+  #             {source_name, Source.merge(source_1, source_2)}
+  #           end)
+  #           |> Map.new()
+  #     }
+  #     | dataloaders
+  #   ])
+  # end
 
-  defp get_callback_result(_dataloader, res = %__MODULE__.Value{lazy?: false}), do: res
+  # defp get_callback_result(_dataloader, res = %__MODULE__.Value{lazy?: false}), do: res
 
-  defp get_callback_result(
-         dataloader,
-         res = %__MODULE__.Value{
-           lazy?: true,
-           callback: nil,
-           value: value,
-           chained_callbacks: [chained_callback | chained_callbacks]
-         }
-       ) do
-    case Map.fetch(dataloader.callback_results, {chained_callback, value}) do
-      {:ok, value = %__MODULE__.Value{}} ->
-        %{value | chained_callbacks: chained_callbacks}
+  # defp get_callback_result(
+  #        dataloader,
+  #        res = %__MODULE__.Value{
+  #          lazy?: true,
+  #          callback: nil,
+  #          value: value,
+  #          chained_callbacks: [chained_callback | chained_callbacks]
+  #        }
+  #      ) do
+  #   case Map.fetch(dataloader.callback_results, {chained_callback, value}) do
+  #     {:ok, value = %__MODULE__.Value{}} ->
+  #       %{value | chained_callbacks: chained_callbacks}
 
-      {:ok, non_wrapped_value} ->
-        %__MODULE__.Value{res | value: non_wrapped_value, chained_callbacks: chained_callbacks}
+  #     {:ok, non_wrapped_value} ->
+  #       %__MODULE__.Value{res | value: non_wrapped_value, chained_callbacks: chained_callbacks}
 
-      :error ->
-        raise("Chained callback not found!")
-    end
-  end
+  #     :error ->
+  #       raise("Chained callback not found!")
+  #   end
+  # end
 
-  defp get_callback_result(
-         dataloader,
-         res = %__MODULE__.Value{
-           lazy?: true,
-           callback: callback,
-           chained_callbacks: chained_callbacks
-         }
-       ) do
-    case Map.fetch(dataloader.callback_results, callback) do
-      {:ok, value = %__MODULE__.Value{}} ->
-        %{value | chained_callbacks: chained_callbacks}
+  # defp get_callback_result(
+  #        dataloader,
+  #        res = %__MODULE__.Value{
+  #          lazy?: true,
+  #          callback: callback,
+  #          chained_callbacks: chained_callbacks
+  #        }
+  #      ) do
+  #   case Map.fetch(dataloader.callback_results, callback) do
+  #     {:ok, value = %__MODULE__.Value{}} ->
+  #       %{value | chained_callbacks: chained_callbacks}
 
-      {:ok, non_wrapped_value} ->
-        %__MODULE__.Value{
-          res
-          | lazy?: chained_callbacks != [],
-            value: non_wrapped_value,
-            callback: nil
-        }
+  #     {:ok, non_wrapped_value} ->
+  #       %__MODULE__.Value{
+  #         res
+  #         | lazy?: chained_callbacks != [],
+  #           value: non_wrapped_value,
+  #           callback: nil
+  #       }
 
-      :error ->
-        raise("Callback result not found")
-    end
-  end
+  #     :error ->
+  #       raise("Callback result not found")
+  #   end
+  # end
 
-  def evaluate_single_pass(results)
+  # def evaluate_single_pass(results)
 
-  def evaluate_single_pass([]), do: []
+  # def evaluate_single_pass([]), do: []
 
-  def evaluate_single_pass(results) when is_list(results) do
-    callbacks =
-      Enum.map(results, fn
-        %{lazy?: true, chained_callbacks: [chained_callback | _], callback: nil, value: value} ->
-          {chained_callback, value}
+  # def evaluate_single_pass(results) when is_list(results) do
+  #   callbacks =
+  #     Enum.map(results, fn
+  #       %{lazy?: true, chained_callbacks: [chained_callback | _], callback: nil, value: value} ->
+  #         {chained_callback, value}
 
-        %{lazy?: true, callback: callback} ->
-          callback
+  #       %{lazy?: true, callback: callback} ->
+  #         callback
 
-        _ ->
-          nil
-      end)
-      |> Enum.filter(& &1)
+  #       _ ->
+  #         nil
+  #     end)
+  #     |> Enum.filter(& &1)
 
-    dataloader =
-      results
-      |> Enum.map(& &1.dataloader)
-      |> merge()
-      |> run(callbacks)
+  #   dataloader =
+  #     results
+  #     |> Enum.map(& &1.dataloader)
+  #     |> merge()
+  #     |> run(callbacks)
 
-    Enum.map(results, &get_callback_result(dataloader, &1))
-  end
+  #   Enum.map(results, &get_callback_result(dataloader, &1))
+  # end
 
-  def evaluate_single_pass(res = %__MODULE__.Value{lazy?: false}), do: res
+  # def evaluate_single_pass(res = %__MODULE__.Value{lazy?: false}), do: res
 
-  def evaluate_single_pass(
-        res = %__MODULE__.Value{
-          lazy?: true,
-          value: value,
-          callback: nil,
-          chained_callbacks: [chained_callback | _chained_callbacks],
-          dataloader: dataloader
-        }
-      ) do
-    run(dataloader, [{chained_callback, value}])
-    |> get_callback_result(res)
-  end
+  # def evaluate_single_pass(
+  #       res = %__MODULE__.Value{
+  #         lazy?: true,
+  #         value: value,
+  #         callback: nil,
+  #         chained_callbacks: [chained_callback | _chained_callbacks],
+  #         dataloader: dataloader
+  #       }
+  #     ) do
+  #   run(dataloader, [{chained_callback, value}])
+  #   |> get_callback_result(res)
+  # end
 
-  def evaluate_single_pass(
-        res = %__MODULE__.Value{lazy?: true, dataloader: dataloader, callback: callback}
-      ) do
-    run(dataloader, [callback])
-    |> get_callback_result(res)
-  end
+  # def evaluate_single_pass(
+  #       res = %__MODULE__.Value{lazy?: true, dataloader: dataloader, callback: callback}
+  #     ) do
+  #   run(dataloader, [callback])
+  #   |> get_callback_result(res)
+  # end
 
-  def evaluate(res = %__MODULE__.Value{lazy?: false}), do: res
+  # def evaluate(res = %__MODULE__.Value{lazy?: false}), do: res
 
-  def evaluate(list_of_res) when is_list(list_of_res) do
-    if Enum.any?(list_of_res, & &1.lazy?) do
-      list_of_res
-      |> evaluate_single_pass()
-      |> evaluate()
-    else
-      list_of_res
-    end
-  end
+  # def evaluate(list_of_res) when is_list(list_of_res) do
+  #   if Enum.any?(list_of_res, & &1.lazy?) do
+  #     list_of_res
+  #     |> evaluate_single_pass()
+  #     |> evaluate()
+  #   else
+  #     list_of_res
+  #   end
+  # end
 
-  def evaluate(value) do
-    value
-    |> evaluate_single_pass()
-    |> evaluate()
-  end
+  # def evaluate(value) do
+  #   value
+  #   |> evaluate_single_pass()
+  #   |> evaluate()
+  # end
 
-  def get_value(%__MODULE__.Value{value: value, lazy?: false}), do: value
+  # def get_value(%__MODULE__.Value{value: value, lazy?: false}), do: value
 
-  def get_value(%__MODULE__.Value{value: value, lazy?: true}),
-    do: value |> evaluate |> get_value()
+  # def get_value(%__MODULE__.Value{value: value, lazy?: true}),
+  #   do: value |> evaluate |> get_value()
 
-  def get_value(values) when is_list(values) do
-    values |> evaluate |> Enum.map(&get_value(&1))
-  end
+  # def get_value(values) when is_list(values) do
+  #   values |> evaluate |> Enum.map(&get_value(&1))
+  # end
 
-  defp build_non_lazy(_dataloader, %__MODULE__.Value{lazy?: true}),
-    do: raise("expected evaluated value")
+  # defp build_non_lazy(_dataloader, %__MODULE__.Value{lazy?: true}),
+  #   do: raise("expected evaluated value")
 
-  defp build_non_lazy(_dataloader, val = %__MODULE__.Value{}) do
-    val
-  end
+  # defp build_non_lazy(_dataloader, val = %__MODULE__.Value{}) do
+  #   val
+  # end
 
-  defp build_non_lazy(dataloader, val) do
-    %__MODULE__.Value{value: val, dataloader: dataloader, lazy?: false}
-  end
+  # defp build_non_lazy(dataloader, val) do
+  #   %__MODULE__.Value{value: val, dataloader: dataloader, lazy?: false}
+  # end
 
   @spec run(t) :: t | no_return
-  def run(dataloader, callbacks \\ []) do
+  def run(dataloader) do
     dataloader =
       if pending_batches?(dataloader) do
         fun = fn {name, source} ->
@@ -269,30 +287,35 @@ defmodule Dataloader do
         dataloader
       end
 
-    callbacks =
-      callbacks
-      |> Enum.map(fn callback ->
-        if !dataloader.callback_results[callback], do: callback
-      end)
-      |> Enum.filter(& &1)
+    # callbacks =
+    #   callbacks
+    #   |> Enum.map(fn callback ->
+    #     if !dataloader.callback_results[callback], do: callback
+    #   end)
+    #   |> Enum.filter(& &1)
 
-    Enum.reduce(callbacks, dataloader, fn callback, dataloader ->
-      %{
-        dataloader
-        | callback_results:
-            Map.put(
-              dataloader.callback_results,
-              callback,
-              case callback do
-                {callback, value} -> callback.(build_non_lazy(dataloader, value))
-                callback -> callback.(dataloader)
-              end
-            )
-      }
-    end)
+    # Enum.reduce(callbacks, dataloader, fn callback, dataloader ->
+    #   %{
+    #     dataloader
+    #     | callback_results:
+    #         Map.put(
+    #           dataloader.callback_results,
+    #           callback,
+    #           case callback do
+    #             {callback, value} -> callback.(build_non_lazy(dataloader, value))
+    #             callback -> callback.(dataloader)
+    #           end
+    #         )
+    #   }
+    # end)
   end
 
-  @spec get(t, source_name, any, any) :: any | no_return()
+  def get(%Dataloader.Deferrable{dataloader: nil}, _, _, _), do: raise("No dataloader found")
+
+  def get(%Dataloader.Deferrable{dataloader: loader}, source, batch_key, item_key) do
+    get(loader, source, batch_key, item_key)
+  end
+
   def get(loader, source, batch_key, item_key) do
     loader
     |> get_source(source)
@@ -304,6 +327,16 @@ defmodule Dataloader do
   defp do_get(:error), do: nil
 
   @spec get_many(t, source_name, any, any) :: [any] | no_return()
+  def get_many(source, batch_key, item_keys) when is_list(item_keys) do
+    Dataloader.Deferrable.new()
+    |> get_many(source, batch_key, item_keys)
+  end
+
+  def get_many(deferrable = %Dataloader.Deferrable{}, source, batch_key, item_keys)
+      when is_list(item_keys) do
+    Dataloader.Deferrable.add_operation(deferrable, {:get_many, [source, batch_key, item_keys]})
+  end
+
   def get_many(loader, source, batch_key, item_keys) when is_list(item_keys) do
     source = get_source(loader, source)
 
@@ -312,6 +345,18 @@ defmodule Dataloader do
       |> Source.fetch(batch_key, key)
       |> do_get
     end
+  end
+
+  def put(source_name, batch_key, item_key, result) do
+    __MODULE__.Deferrable.new()
+    |> put(source_name, batch_key, item_key, result)
+  end
+
+  def put(deferrable = %Dataloader.Deferrable{}, source_name, batch_key, item_key, result) do
+    Dataloader.Deferrable.add_operation(
+      deferrable,
+      {:put, [source_name, batch_key, item_key, result]}
+    )
   end
 
   def put(loader, source_name, batch_key, item_key, result) do
@@ -323,19 +368,17 @@ defmodule Dataloader do
     put_in(loader.sources[source_name], source)
   end
 
-  def then(
-        prev = %__MODULE__.Value{lazy?: true, chained_callbacks: chained_callbacks},
-        chained_callback
-      ) do
-    %{
-      prev
-      | chained_callbacks: Enum.reverse([chained_callback | chained_callbacks])
-    }
-  end
+  # def then(
+  #       prev = %__MODULE__.Value{lazy?: true, chained_callbacks: chained_callbacks},
+  #       chained_callback
+  #     ) do
+  #   %{
+  #     prev
+  #     | chained_callbacks: Enum.reverse([chained_callback | chained_callbacks])
+  #   }
+  # end
 
-  def on_load(dataloader, callback) do
-    %__MODULE__.Value{lazy?: true, callback: callback, dataloader: dataloader}
-  end
+  def deferrable(), do: %__MODULE__.Deferrable{}
 
   # def get_value(%__MODULE__.Value)
 

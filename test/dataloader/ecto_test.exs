@@ -4,6 +4,7 @@ defmodule Dataloader.EctoTest do
   alias Dataloader.{User, Post, Like}
   import Ecto.Query
   alias Dataloader.TestRepo, as: Repo
+  import Defer
 
   setup do
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(Repo)
@@ -326,112 +327,114 @@ defmodule Dataloader.EctoTest do
     assert loader_called_once == loader_called_twice
   end
 
+  @tag :wip
   test "evaluate lazy value, one level", %{loader: loader} do
     user = %User{username: "Jaap Frolich"} |> Repo.insert!()
 
     result =
-      loader
-      |> Dataloader.load(Test, User, user.id)
-      |> Dataloader.on_load(fn loader ->
-        Dataloader.get(loader, Test, User, user.id)
+      Dataloader.load(Test, User, user.id)
+      |> then(fn deferrable ->
+        Dataloader.get(deferrable, Test, User, user.id)
       end)
 
-    assert %Dataloader.Value{} = result
+    assert %Dataloader.Deferrable{evaluated?: false} = result
 
-    assert Dataloader.evaluate(result).value.username == "Jaap Frolich"
+    assert Deferrable.evaluate(result, dataloader: loader).value.username == "Jaap Frolich"
   end
 
+  @tag :wip
   test "evaluate lazy values, two levels", %{loader: loader} do
     user_1 = %User{username: "Ben Wilson"} |> Repo.insert!()
     user_2 = %User{username: "Jaap Frolich"} |> Repo.insert!()
 
     result =
-      loader
-      |> Dataloader.load(Test, User, user_1.id)
-      |> Dataloader.on_load(fn loader ->
-        ret_user_1 = Dataloader.get(loader, Test, User, user_1.id)
+      Dataloader.load(Test, User, user_1.id)
+      |> then(fn deferrable ->
+        ret_user_1 = Dataloader.get(deferrable, Test, User, user_1.id)
 
-        loader
-        |> Dataloader.load(Test, User, user_2.id)
-        |> Dataloader.on_load(fn loader ->
-          ret_user_2 = Dataloader.get(loader, Test, User, user_2.id)
+        Dataloader.load(Test, User, user_2.id)
+        |> then(fn deferrable ->
+          ret_user_2 = Dataloader.get(deferrable, Test, User, user_2.id)
           [ret_user_1, ret_user_2]
         end)
       end)
 
-    assert [%{id: user_1_id}, %{id: user_2_id}] = Dataloader.evaluate(result).value
+    assert [%{id: user_1_id}, %{id: user_2_id}] = Defer.evaluate(result, dataloader: loader).value
     assert user_1_id == user_1.id
     assert user_2_id == user_2.id
   end
 
+  @tag :wip
   test "evaluate list of lazy values", %{loader: loader} do
     user_1 = %User{username: "Ben Wilson"} |> Repo.insert!()
     user_2 = %User{username: "Jaap Frolich"} |> Repo.insert!()
 
     result_1 =
-      loader
-      |> Dataloader.load(Test, User, user_1.id)
-      |> Dataloader.on_load(fn loader ->
-        Dataloader.get(loader, Test, User, user_1.id)
+      Dataloader.load(Test, User, user_1.id)
+      |> then(fn deferrable ->
+        Dataloader.get(deferrable, Test, User, user_1.id)
       end)
 
     result_2 =
-      result_1.dataloader
-      |> Dataloader.load(Test, User, user_2.id)
-      |> Dataloader.on_load(fn loader ->
-        Dataloader.get(loader, Test, User, user_2.id)
+      Dataloader.load(Test, User, user_2.id)
+      |> then(fn deferrable ->
+        Dataloader.get(deferrable, Test, User, user_2.id)
       end)
 
-    assert [%{id: user_1_id}, %{id: user_2_id}] = Dataloader.get_value([result_1, result_2])
+    assert [%{id: user_1_id}, %{id: user_2_id}] =
+             Defer.get_value([result_1, result_2], dataloader: loader)
+
     assert user_1_id == user_1.id
     assert user_2_id == user_2.id
   end
 
+  @tag :wip
   test "evaluate chaining of callbacks", %{loader: loader} do
     user_1 = %User{username: "Ben Wilson"} |> Repo.insert!()
     user_2 = %User{username: "Jaap Frolich"} |> Repo.insert!()
 
     result =
-      loader
-      |> Dataloader.load(Test, User, user_1.id)
-      |> Dataloader.on_load(fn loader ->
-        Dataloader.get(loader, Test, User, user_1.id)
+      Dataloader.load(Test, User, user_1.id)
+      |> then(fn deferrable ->
+        Dataloader.get(deferrable, Test, User, user_1.id)
       end)
-      |> Dataloader.then(fn %{value: prev, dataloader: loader} ->
-        Dataloader.load(loader, Test, User, user_2.id)
-        |> Dataloader.on_load(fn loader ->
-          ret_user_2 = Dataloader.get(loader, Test, User, user_2.id)
+      |> then(fn prev ->
+        Dataloader.load(Test, User, user_2.id)
+        |> then(fn deferrable ->
+          ret_user_2 = Dataloader.get(deferrable, Test, User, user_2.id)
           [prev, ret_user_2]
         end)
       end)
 
-    assert [%{id: user_1_id}, %{id: user_2_id}] = Dataloader.evaluate(result).value
+    assert [%{id: user_1_id}, %{id: user_2_id}] = evaluate(result, dataloader: loader).value
+
     assert user_1_id == user_1.id
     assert user_2_id == user_2.id
   end
 
+  @tag :wip
   test "evaluate chaining of callbacks (nested)", %{loader: loader} do
     user_1 = %User{username: "Ben Wilson"} |> Repo.insert!()
     user_2 = %User{username: "Jaap Frolich"} |> Repo.insert!()
 
     result =
-      loader
-      |> Dataloader.on_load(fn loader ->
-        loader
-        |> Dataloader.load(Test, User, user_1.id)
-        |> Dataloader.on_load(fn loader ->
-          Dataloader.get(loader, Test, User, user_1.id)
+      Dataloader.Deferrable.new()
+      |> then(fn _ ->
+        Dataloader.load(Test, User, user_1.id)
+        |> then(fn deferrable ->
+          Dataloader.get(deferrable, Test, User, user_1.id)
         end)
       end)
-      |> Dataloader.then(fn %{value: prev, dataloader: loader} ->
-        Dataloader.load(loader, Test, User, user_2.id)
-        |> Dataloader.on_load(fn loader ->
-          ret_user_2 = Dataloader.get(loader, Test, User, user_2.id)
+      |> then(fn prev ->
+        Dataloader.load(Test, User, user_2.id)
+        |> then(fn deferrable ->
+          ret_user_2 = Dataloader.get(deferrable, Test, User, user_2.id)
           [prev, ret_user_2]
         end)
       end)
 
-    assert [%{id: user_1_id}, %{id: user_2_id}] = Dataloader.evaluate(result).value
+    assert [%{id: user_1_id}, %{id: user_2_id}] = evaluate(result, dataloader: loader).value
+
     assert user_1_id == user_1.id
     assert user_2_id == user_2.id
   end
