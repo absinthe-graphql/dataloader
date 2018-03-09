@@ -327,34 +327,32 @@ defmodule Dataloader.EctoTest do
     assert loader_called_once == loader_called_twice
   end
 
-  @tag :wip
   test "evaluate lazy value, one level", %{loader: loader} do
     user = %User{username: "Jaap Frolich"} |> Repo.insert!()
 
     result =
-      Dataloader.load(Test, User, user.id)
+      Lazyloader.load(Test, User, user.id)
       |> then(fn deferrable ->
-        Dataloader.get(deferrable, Test, User, user.id)
+        Lazyloader.get(deferrable, Test, User, user.id)
       end)
 
-    assert %Dataloader.Deferrable{evaluated?: false} = result
+    assert %Lazyloader.Deferrable{evaluated?: false} = result
 
     assert Deferrable.evaluate(result, dataloader: loader).value.username == "Jaap Frolich"
   end
 
-  @tag :wip
   test "evaluate lazy values, two levels", %{loader: loader} do
     user_1 = %User{username: "Ben Wilson"} |> Repo.insert!()
     user_2 = %User{username: "Jaap Frolich"} |> Repo.insert!()
 
     result =
-      Dataloader.load(Test, User, user_1.id)
+      Lazyloader.load(Test, User, user_1.id)
       |> then(fn deferrable ->
-        ret_user_1 = Dataloader.get(deferrable, Test, User, user_1.id)
+        ret_user_1 = Lazyloader.get(deferrable, Test, User, user_1.id)
 
-        Dataloader.load(Test, User, user_2.id)
+        Lazyloader.load(Test, User, user_2.id)
         |> then(fn deferrable ->
-          ret_user_2 = Dataloader.get(deferrable, Test, User, user_2.id)
+          ret_user_2 = Lazyloader.get(deferrable, Test, User, user_2.id)
           [ret_user_1, ret_user_2]
         end)
       end)
@@ -364,44 +362,42 @@ defmodule Dataloader.EctoTest do
     assert user_2_id == user_2.id
   end
 
-  @tag :wip
   test "evaluate list of lazy values", %{loader: loader} do
     user_1 = %User{username: "Ben Wilson"} |> Repo.insert!()
     user_2 = %User{username: "Jaap Frolich"} |> Repo.insert!()
 
     result_1 =
-      Dataloader.load(Test, User, user_1.id)
+      Lazyloader.load(Test, User, user_1.id)
       |> then(fn deferrable ->
-        Dataloader.get(deferrable, Test, User, user_1.id)
+        Lazyloader.get(deferrable, Test, User, user_1.id)
       end)
 
     result_2 =
-      Dataloader.load(Test, User, user_2.id)
+      Lazyloader.load(Test, User, user_2.id)
       |> then(fn deferrable ->
-        Dataloader.get(deferrable, Test, User, user_2.id)
+        Lazyloader.get(deferrable, Test, User, user_2.id)
       end)
 
     assert [%{id: user_1_id}, %{id: user_2_id}] =
-             Defer.get_value([result_1, result_2], dataloader: loader)
+             Defer.evaluate([result_1, result_2], dataloader: loader) |> Defer.get_value()
 
     assert user_1_id == user_1.id
     assert user_2_id == user_2.id
   end
 
-  @tag :wip
   test "evaluate chaining of callbacks", %{loader: loader} do
     user_1 = %User{username: "Ben Wilson"} |> Repo.insert!()
     user_2 = %User{username: "Jaap Frolich"} |> Repo.insert!()
 
     result =
-      Dataloader.load(Test, User, user_1.id)
+      Lazyloader.load(Test, User, user_1.id)
       |> then(fn deferrable ->
-        Dataloader.get(deferrable, Test, User, user_1.id)
+        Lazyloader.get(deferrable, Test, User, user_1.id)
       end)
       |> then(fn prev ->
-        Dataloader.load(Test, User, user_2.id)
+        Lazyloader.load(Test, User, user_2.id)
         |> then(fn deferrable ->
-          ret_user_2 = Dataloader.get(deferrable, Test, User, user_2.id)
+          ret_user_2 = Lazyloader.get(deferrable, Test, User, user_2.id)
           [prev, ret_user_2]
         end)
       end)
@@ -412,23 +408,22 @@ defmodule Dataloader.EctoTest do
     assert user_2_id == user_2.id
   end
 
-  @tag :wip
   test "evaluate chaining of callbacks (nested)", %{loader: loader} do
     user_1 = %User{username: "Ben Wilson"} |> Repo.insert!()
     user_2 = %User{username: "Jaap Frolich"} |> Repo.insert!()
 
     result =
-      Dataloader.Deferrable.new()
+      Lazyloader.new()
       |> then(fn _ ->
-        Dataloader.load(Test, User, user_1.id)
+        Lazyloader.load(Test, User, user_1.id)
         |> then(fn deferrable ->
-          Dataloader.get(deferrable, Test, User, user_1.id)
+          Lazyloader.get(deferrable, Test, User, user_1.id)
         end)
       end)
       |> then(fn prev ->
-        Dataloader.load(Test, User, user_2.id)
+        Lazyloader.load(Test, User, user_2.id)
         |> then(fn deferrable ->
-          ret_user_2 = Dataloader.get(deferrable, Test, User, user_2.id)
+          ret_user_2 = Lazyloader.get(deferrable, Test, User, user_2.id)
           [prev, ret_user_2]
         end)
       end)

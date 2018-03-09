@@ -207,20 +207,6 @@ if Code.ensure_loaded?(Ecto) do
         end)
       end
 
-      defp merge_batches(batches_a, batches_b) do
-        Map.merge(batches_a, batches_b, fn _, v1, v2 ->
-          MapSet.union(v1, v2)
-        end)
-      end
-
-      def merge(source_a, source_b) do
-        %{
-          source_a
-          | results: merge_results(source_a.results, source_b.results),
-            batches: merge_batches(source_a.batches, source_b.batches)
-        }
-      end
-
       def run(source) do
         results =
           source.batches

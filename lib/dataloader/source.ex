@@ -26,9 +26,6 @@ defprotocol Dataloader.Source do
   @spec pending_batches?(t) :: boolean
   def pending_batches?(source)
 
-  @spec merge(t, t) :: t
-  def merge(source_a, source_b)
-
   @doc """
   Put a value into the results.
 
