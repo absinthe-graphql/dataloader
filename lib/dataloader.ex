@@ -93,9 +93,7 @@ defmodule Dataloader do
   @spec run(t) :: t | no_return
   def run(dataloader) do
     if pending_batches?(dataloader) do
-      fun = fn {name, source} ->
-        {name, Source.run(source)}
-      end
+      fun = fn {name, source} -> {name, Source.run(source)} end
 
       sources =
         dataloader.sources
@@ -112,6 +110,7 @@ defmodule Dataloader do
     end
   end
 
+  @spec get(t, source_name, any, any) :: any | no_return()
   def get(loader, source, batch_key, item_key) do
     loader
     |> get_source(source)
@@ -141,8 +140,6 @@ defmodule Dataloader do
 
     put_in(loader.sources[source_name], source)
   end
-
-  def deferrable(), do: %__MODULE__.Deferrable{}
 
   @spec pending_batches?(t) :: boolean
   def pending_batches?(loader) do
