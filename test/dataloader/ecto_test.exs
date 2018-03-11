@@ -357,7 +357,9 @@ defmodule Dataloader.EctoTest do
         end)
       end)
 
-    assert [%{id: user_1_id}, %{id: user_2_id}] = Defer.evaluate(result, dataloader: loader).value
+    assert [%{id: user_1_id}, %{id: user_2_id}] =
+             Defer.evaluate(result, dataloader: loader) |> Defer.get_value()
+
     assert user_1_id == user_1.id
     assert user_2_id == user_2.id
   end
@@ -402,7 +404,8 @@ defmodule Dataloader.EctoTest do
         end)
       end)
 
-    assert [%{id: user_1_id}, %{id: user_2_id}] = evaluate(result, dataloader: loader).value
+    assert [%{id: user_1_id}, %{id: user_2_id}] =
+             evaluate(result, dataloader: loader) |> get_value
 
     assert user_1_id == user_1.id
     assert user_2_id == user_2.id
@@ -428,7 +431,8 @@ defmodule Dataloader.EctoTest do
         end)
       end)
 
-    assert [%{id: user_1_id}, %{id: user_2_id}] = evaluate(result, dataloader: loader).value
+    assert [%{id: user_1_id}, %{id: user_2_id}] =
+             evaluate(result, dataloader: loader) |> get_value
 
     assert user_1_id == user_1.id
     assert user_2_id == user_2.id

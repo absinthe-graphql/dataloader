@@ -19,6 +19,18 @@ defmodule Lazyloader do
     Lazyloader.Deferrable.add_operation(deferrable, {:load, [source_name, batch_key, val]})
   end
 
+  def retrieve(source_name, batch_key, val) do
+    Lazyloader.Deferrable.new()
+    |> retrieve(source_name, batch_key, val)
+  end
+
+  def retrieve(deferrable = %Lazyloader.Deferrable{}, source_name, batch_key, val) do
+    load(deferrable, source_name, batch_key, val)
+    |> Lazyloader.Deferrable.then(fn deferrable ->
+      get(deferrable, source_name, batch_key, val)
+    end)
+  end
+
   def get(%Lazyloader.Deferrable{dataloader: nil}, _, _, _), do: raise("No dataloader found")
 
   def get(%Lazyloader.Deferrable{dataloader: loader}, source, batch_key, item_key) do

@@ -9,115 +9,82 @@ defmodule Lazyloader.Deferrable do
     %{deferrable | operations: [operation | operations]}
   end
 
-  defp apply_operations(dataloader, %{operations: operations}),
-    do: apply_operations(dataloader, operations)
+  def commit_operations(dataloader, %{operations: operations}),
+    do: commit_operations(dataloader, operations)
 
-  defp apply_operations(dataloader, []), do: dataloader
+  def commit_operations(dataloader, []), do: dataloader
 
-  defp apply_operations(dataloader, [
-         %Lazyloader.Deferrable{operations: operations} | deferrables
-       ]) do
-    if !dataloader, do: raise("No dataloader supplied")
-
-    dataloader
-    |> apply_operations(operations)
-    |> apply_operations(deferrables)
+  def commit_operations(dataloader, deferrables = [%__MODULE__{} | _]) do
+    Enum.reduce(deferrables, dataloader, &commit_operations(&2, &1))
   end
 
-  defp apply_operations(dataloader, [{operation, args} | operations]) do
+  def commit_operations(dataloader, [{operation, args} | operations]) do
     if !dataloader, do: raise("No dataloader supplied")
 
     :erlang.apply(Dataloader, operation, [dataloader | args])
-    |> apply_operations(operations)
+    |> commit_operations(operations)
   end
 
   def get_value([], _), do: []
 
-  def get_value([deferrable | deferrables], opts) do
-    [get_value(deferrable, opts) | get_value(deferrables, opts)]
+  def get_value(deferrables, opts) when is_list(deferrables) do
+    Enum.map(deferrables, &get_value(&1, opts))
   end
 
-  def get_value(%Lazyloader.Deferrable{value: value, evaluated?: true}, _opts) do
+  def get_value(%__MODULE__{value: value, evaluated?: true}, _opts) do
     value
   end
 
-  defp run_callbacks([], _, []), do: []
-
-  defp run_callbacks([deferrable | deferrables], dataloader, [prev_deferrable | prev_deferrables]) do
-    deferrable = run_callbacks(deferrable, dataloader, prev_deferrable)
-    if !deferrable.dataloader, do: raise("Oops no dataloader")
-
-    [
-      deferrable
-      | run_callbacks(deferrables, deferrable.dataloader, prev_deferrables)
-    ]
-  end
-
   defp run_callbacks(
-         %Lazyloader.Deferrable{callback: callback, evaluated?: false} = deferrable,
-         dataloader,
-         _prev_deferrable
+         %__MODULE__{callback: callback, evaluated?: false} = deferrable,
+         dataloader
        ) do
-    dataloader = apply_operations(dataloader, deferrable)
+    dataloader = commit_operations(dataloader, deferrable)
+    deferrable = %{deferrable | dataloader: dataloader}
 
     if Dataloader.pending_batches?(dataloader) do
-      %{deferrable | dataloader: dataloader}
+      deferrable
     else
-      if !callback do
-        raise "No callback found"
-      end
+      if !callback, do: raise("No callback found")
 
       run_callbacks(
-        callback.(%{deferrable | dataloader: dataloader}),
-        dataloader,
-        deferrable
+        callback.(deferrable),
+        dataloader
       )
     end
   end
 
-  defp run_callbacks(deferrable = %{evaluated?: true}, _, _), do: deferrable
-
-  defp run_callbacks(other, dataloader, prev_deferrable) do
-    %{
-      prev_deferrable
-      | value: other,
-        dataloader: dataloader,
-        evaluated?: true,
-        callback: nil
-    }
+  defp run_callbacks(deferrables, dataloader) when is_list(deferrables) do
+    Enum.map(deferrables, &run_callbacks(&1, dataloader))
   end
 
-  def execute(dataloader, deferrable) do
-    dataloader |> apply_operations(deferrable) |> Dataloader.run()
+  defp run_callbacks(deferrable = %{evaluated?: true}, _), do: deferrable
+
+  defp run_callbacks(other, dataloader) do
+    %__MODULE__{
+      value: other,
+      dataloader: dataloader,
+      evaluated?: true,
+      callback: nil
+    }
   end
 
   def evaluate_once(val, opts \\ [])
 
-  def evaluate_once(val = %Lazyloader.Deferrable{evaluated?: true}, _), do: val
-
-  def evaluate_once(deferrables, opts) when is_list(deferrables) do
-    dataloader = execute(opts[:dataloader], deferrables)
-
-    if is_list(opts[:prev]) do
-      run_callbacks(deferrables, dataloader, opts[:prev])
-    else
-      run_callbacks(deferrables, dataloader, Enum.map(deferrables, fn _ -> opts[:prev] end))
-    end
-  end
+  def evaluate_once(val = %__MODULE__{evaluated?: true}, _), do: val
 
   def evaluate_once(
         deferrable,
         opts
       ) do
-    dataloader = execute(opts[:dataloader], deferrable)
+    run_dataloader = Keyword.get(opts, :run_dataloader, true)
+    dataloader = opts[:dataloader]
+    if(!dataloader, do: raise("No dataloader found"))
 
-    run_callbacks(deferrable, dataloader, opts[:prev])
-  end
+    dataloader = commit_operations(dataloader, deferrable)
+    dataloader = if(run_dataloader, do: Dataloader.run(dataloader), else: dataloader)
 
-  defp get_dataloader(%{dataloader: dataloader}), do: dataloader
-
-  defp get_dataloader([%{dataloader: dataloader} | _]) do
-    dataloader
+    run_callbacks(deferrable, dataloader)
   end
 
   defp all_evaluated?([]), do: true
@@ -126,32 +93,31 @@ defmodule Lazyloader.Deferrable do
     val.evaluated? && all_evaluated?(vals)
   end
 
-  defp do_evaluate(val, opts) do
-    new_val = evaluate_once(val, opts)
-
-    opts =
-      opts
-      |> Keyword.put(:dataloader, get_dataloader(new_val))
-      |> Keyword.put(:prev, val)
-
-    {new_val, opts}
+  defp add_new_dataloader(opts, %__MODULE__{dataloader: dataloader}) do
+    Keyword.put(opts, :dataloader, dataloader)
   end
 
-  def evaluate(val = %Lazyloader.Deferrable{evaluated?: true}, _opts), do: val
+  defp add_new_dataloader(opts, [%__MODULE__{dataloader: dataloader} | _]) do
+    Keyword.put(opts, :dataloader, dataloader)
+  end
 
-  def evaluate(val = %Lazyloader.Deferrable{}, opts) do
-    {new_val, opts} = do_evaluate(val, opts)
+  def evaluate(val = %__MODULE__{evaluated?: true}, _opts), do: val
 
-    evaluate(new_val, opts)
+  def evaluate(val = %__MODULE__{}, opts) do
+    if !opts[:dataloader], do: raise("No dataloader found!")
+
+    val = evaluate_once(val, opts)
+    evaluate(val, add_new_dataloader(opts, val))
   end
 
   def evaluate(vals, opts) when is_list(vals) do
-    {new_vals, opts} = do_evaluate(vals, opts)
+    new_vals = evaluate_once(vals, opts)
+    if !opts[:dataloader], do: raise("No dataloader found!")
 
     if all_evaluated?(new_vals) do
       new_vals
     else
-      evaluate(new_vals, opts)
+      evaluate(new_vals, add_new_dataloader(opts, vals))
     end
   end
 
@@ -160,7 +126,7 @@ defmodule Lazyloader.Deferrable do
   end
 
   def then(val = %{callback: previous_callback}, callback) do
-    %Lazyloader.Deferrable{
+    %__MODULE__{
       val
       | callback: fn prev ->
           Defer.then(previous_callback.(prev), callback)
@@ -168,7 +134,7 @@ defmodule Lazyloader.Deferrable do
     }
   end
 
-  ## --- implementantion functions
+  ## --- Deferrable implementation functions
   defimpl Deferrable do
     def evaluate(deferrable, opts \\ []) do
       Lazyloader.Deferrable.evaluate(deferrable, opts)
