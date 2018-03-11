@@ -364,21 +364,16 @@ defmodule Dataloader.EctoTest do
     assert user_2_id == user_2.id
   end
 
+  defer def list_element(id) do
+    await(Lazyloader.retrieve(Test, User, id))
+  end
+
   test "evaluate list of lazy values", %{loader: loader} do
     user_1 = %User{username: "Ben Wilson"} |> Repo.insert!()
     user_2 = %User{username: "Jaap Frolich"} |> Repo.insert!()
 
-    result_1 =
-      Lazyloader.load(Test, User, user_1.id)
-      |> then(fn deferrable ->
-        Lazyloader.get(deferrable, Test, User, user_1.id)
-      end)
-
-    result_2 =
-      Lazyloader.load(Test, User, user_2.id)
-      |> then(fn deferrable ->
-        Lazyloader.get(deferrable, Test, User, user_2.id)
-      end)
+    result_1 = list_element(user_1.id)
+    result_2 = list_element(user_2.id)
 
     assert [%{id: user_1_id}, %{id: user_2_id}] =
              Defer.evaluate([result_1, result_2], dataloader: loader) |> Defer.get_value()
@@ -387,22 +382,17 @@ defmodule Dataloader.EctoTest do
     assert user_2_id == user_2.id
   end
 
+  defer def chaining_callbacks(id_1, id_2) do
+    user_1 = await(Lazyloader.retrieve(Test, User, id_1))
+    user_2 = await(Lazyloader.retrieve(Test, User, id_2))
+    [user_1, user_2]
+  end
+
   test "evaluate chaining of callbacks", %{loader: loader} do
     user_1 = %User{username: "Ben Wilson"} |> Repo.insert!()
     user_2 = %User{username: "Jaap Frolich"} |> Repo.insert!()
 
-    result =
-      Lazyloader.load(Test, User, user_1.id)
-      |> then(fn deferrable ->
-        Lazyloader.get(deferrable, Test, User, user_1.id)
-      end)
-      |> then(fn prev ->
-        Lazyloader.load(Test, User, user_2.id)
-        |> then(fn deferrable ->
-          ret_user_2 = Lazyloader.get(deferrable, Test, User, user_2.id)
-          [prev, ret_user_2]
-        end)
-      end)
+    result = chaining_callbacks(user_1.id, user_2.id)
 
     assert [%{id: user_1_id}, %{id: user_2_id}] =
              evaluate(result, dataloader: loader) |> get_value
