@@ -157,7 +157,7 @@ defmodule Dataloader do
     # The intermediary task is spawned here so that the `:trap_exit` flag does
     # not lead to rogue behaviour within the current process. This could happen
     # if the current process is linked to something, and then that something
-    # does in the middle of us loading stuff.
+    # dies in the middle of us loading stuff.
     task =
       Task.async(fn ->
         # The purpose of `:trap_exit` here is so that we can ensure that any failures
