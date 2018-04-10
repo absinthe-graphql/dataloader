@@ -139,6 +139,11 @@ defmodule Dataloader do
     Enum.any?(loader.sources, fn {_name, source} -> Source.pending_batches?(source) end)
   end
 
+  @spec has_source?(t, atom()) :: boolean
+  def has_source?(%{sources: sources}, source) do
+    Map.has_key?(sources, source)
+  end
+
   defp get_source(loader, source_name) do
     loader.sources[source_name] || raise "Source does not exist: #{inspect(source_name)}"
   end
