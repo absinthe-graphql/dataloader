@@ -1,5 +1,5 @@
 defmodule Lazyloader.Deferrable do
-  defstruct evaluated?: false, value: nil, callback: nil, operations: [], dataloader: nil
+  defstruct then: nil, operations: [], dataloader: nil
 
   def new() do
     %__MODULE__{}
@@ -9,14 +9,12 @@ defmodule Lazyloader.Deferrable do
     %{deferrable | operations: [operation | operations]}
   end
 
+  def commit_operations(dataloader, operations)
+
   def commit_operations(dataloader, %{operations: operations}),
     do: commit_operations(dataloader, operations)
 
   def commit_operations(dataloader, []), do: dataloader
-
-  def commit_operations(dataloader, deferrables = [%__MODULE__{} | _]) do
-    Enum.reduce(deferrables, dataloader, &commit_operations(&2, &1))
-  end
 
   def commit_operations(dataloader, [{operation, args} | operations]) do
     if !dataloader, do: raise("No dataloader supplied")
@@ -25,30 +23,30 @@ defmodule Lazyloader.Deferrable do
     |> commit_operations(operations)
   end
 
-  def get_value([], _), do: []
-
-  def get_value(deferrables, opts) when is_list(deferrables) do
-    Enum.map(deferrables, &get_value(&1, opts))
+  def commit_operations(dataloader, [deferrable | deferrables]) when is_list(deferrables) do
+    commit_operations(dataloader, deferrable)
+    |> commit_operations(deferrables)
   end
 
-  def get_value(%__MODULE__{value: value, evaluated?: true}, _opts) do
-    value
-  end
+  def commit_operations(dataloader, _), do: dataloader
 
   defp run_callbacks(
-         %__MODULE__{callback: callback, evaluated?: false} = deferrable,
+         %__MODULE__{then: nil},
+         _
+       ),
+       do: raise("No callback found")
+
+  defp run_callbacks(
+         %__MODULE__{then: then} = deferrable,
          dataloader
        ) do
     dataloader = commit_operations(dataloader, deferrable)
-    deferrable = %{deferrable | dataloader: dataloader}
 
     if Dataloader.pending_batches?(dataloader) do
       deferrable
     else
-      if !callback, do: raise("No callback found")
-
       run_callbacks(
-        callback.(deferrable),
+        then.(%{deferrable | dataloader: dataloader}),
         dataloader
       )
     end
@@ -58,98 +56,74 @@ defmodule Lazyloader.Deferrable do
     Enum.map(deferrables, &run_callbacks(&1, dataloader))
   end
 
-  defp run_callbacks(deferrable = %{evaluated?: true}, _), do: deferrable
-
-  defp run_callbacks(other, dataloader) do
-    %__MODULE__{
-      value: other,
-      dataloader: dataloader,
-      evaluated?: true,
-      callback: nil
-    }
+  defp run_callbacks(other, _) do
+    other
   end
 
-  def evaluate_once(val, opts \\ [])
+  def run_once(val, context \\ [])
 
-  def evaluate_once(val = %__MODULE__{evaluated?: true}, _), do: val
-
-  def evaluate_once(
+  def run_once(
         deferrable,
-        opts
+        context
       ) do
-    run_dataloader = Keyword.get(opts, :run_dataloader, true)
-    dataloader = opts[:dataloader]
-    if(!dataloader, do: raise("No dataloader found"))
+    run_dataloader = Keyword.get(context, :run_dataloader, true)
+    if(!context[:dataloader], do: raise("No dataloader found"))
 
-    dataloader = commit_operations(dataloader, deferrable)
+    dataloader = commit_operations(context[:dataloader], deferrable)
     dataloader = if(run_dataloader, do: Dataloader.run(dataloader), else: dataloader)
-
-    run_callbacks(deferrable, dataloader)
+    context = Keyword.put(context, :dataloader, dataloader)
+    result = run_callbacks(deferrable, dataloader)
+    {result, context}
   end
 
-  defp all_evaluated?([]), do: true
+  def run(val = %__MODULE__{}, context) do
+    if !context[:dataloader], do: raise("No dataloader found in context!")
 
-  defp all_evaluated?([val | vals]) do
-    val.evaluated? && all_evaluated?(vals)
+    {val, context} = Deferrable.run_once(val, context)
+
+    Deferrable.run(val, context)
   end
 
-  defp add_new_dataloader(opts, %__MODULE__{dataloader: dataloader}) do
-    Keyword.put(opts, :dataloader, dataloader)
-  end
+  def run(vals, context) when is_list(vals) do
+    {new_vals, context} = Deferrable.run_once(vals, context)
+    if !context[:dataloader], do: raise("No dataloader found in context!")
 
-  defp add_new_dataloader(opts, [%__MODULE__{dataloader: dataloader} | _]) do
-    Keyword.put(opts, :dataloader, dataloader)
-  end
-
-  def evaluate(val = %__MODULE__{evaluated?: true}, _opts), do: val
-
-  def evaluate(val = %__MODULE__{}, opts) do
-    if !opts[:dataloader], do: raise("No dataloader found!")
-
-    val = evaluate_once(val, opts)
-    evaluate(val, add_new_dataloader(opts, val))
-  end
-
-  def evaluate(vals, opts) when is_list(vals) do
-    new_vals = evaluate_once(vals, opts)
-    if !opts[:dataloader], do: raise("No dataloader found!")
-
-    if all_evaluated?(new_vals) do
+    if not Deferrable.deferrable?(new_vals) do
       new_vals
     else
-      evaluate(new_vals, add_new_dataloader(opts, vals))
+      Deferrable.run(new_vals, context)
     end
   end
 
-  def then(val = %{callback: nil}, callback) do
-    %{val | callback: callback}
+  def then(val, callback)
+
+  def then(val = %{then: nil}, callback) do
+    %{val | then: callback}
   end
 
-  def then(val = %{callback: previous_callback}, callback) do
+  def then(val = %{then: then}, callback) do
     %__MODULE__{
       val
-      | callback: fn prev ->
-          Defer.then(previous_callback.(prev), callback)
+      | then: fn prev ->
+          Deferrable.then(then.(prev), callback)
         end
     }
   end
 
   ## --- Deferrable implementation functions
   defimpl Deferrable do
-    def evaluate(deferrable, opts \\ []) do
-      Lazyloader.Deferrable.evaluate(deferrable, opts)
+    def run(deferrable, opts \\ []) do
+      Lazyloader.Deferrable.run(deferrable, opts)
     end
 
-    def evaluate_once(deferrable, opts \\ []) do
-      Lazyloader.Deferrable.evaluate_once(deferrable, opts)
-    end
-
-    def get_value(deferrable, opts \\ []) do
-      Lazyloader.Deferrable.get_value(deferrable, opts)
+    def run_once(deferrable, opts \\ []) do
+      Lazyloader.Deferrable.run_once(deferrable, opts)
     end
 
     def then(deferrable, callback) do
       Lazyloader.Deferrable.then(deferrable, callback)
     end
+
+    def deferrable?(_), do: true
   end
 end

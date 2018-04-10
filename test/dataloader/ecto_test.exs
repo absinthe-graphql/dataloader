@@ -327,7 +327,7 @@ defmodule Dataloader.EctoTest do
     assert loader_called_once == loader_called_twice
   end
 
-  test "evaluate lazy value, one level", %{loader: loader} do
+  test "run lazy value, one level", %{loader: loader} do
     user = %User{username: "Jaap Frolich"} |> Repo.insert!()
 
     result =
@@ -336,12 +336,12 @@ defmodule Dataloader.EctoTest do
         Lazyloader.get(deferrable, Test, User, user.id)
       end)
 
-    assert %Lazyloader.Deferrable{evaluated?: false} = result
+    assert %Lazyloader.Deferrable{} = result
 
-    assert Deferrable.evaluate(result, dataloader: loader).value.username == "Jaap Frolich"
+    assert run(result, dataloader: loader).username == "Jaap Frolich"
   end
 
-  test "evaluate lazy values, two levels", %{loader: loader} do
+  test "run lazy values, two levels", %{loader: loader} do
     user_1 = %User{username: "Ben Wilson"} |> Repo.insert!()
     user_2 = %User{username: "Jaap Frolich"} |> Repo.insert!()
 
@@ -357,72 +357,64 @@ defmodule Dataloader.EctoTest do
         end)
       end)
 
-    assert [%{id: user_1_id}, %{id: user_2_id}] =
-             Defer.evaluate(result, dataloader: loader) |> Defer.get_value()
+    assert [%{id: user_1_id}, %{id: user_2_id}] = run(result, dataloader: loader)
 
     assert user_1_id == user_1.id
     assert user_2_id == user_2.id
   end
 
   defer def list_element(id) do
-    await(Lazyloader.retrieve(Test, User, id))
+    await Lazyloader.retrieve(Test, User, id)
   end
 
-  test "evaluate list of lazy values", %{loader: loader} do
+  test "run list of lazy values", %{loader: loader} do
     user_1 = %User{username: "Ben Wilson"} |> Repo.insert!()
     user_2 = %User{username: "Jaap Frolich"} |> Repo.insert!()
 
     result_1 = list_element(user_1.id)
     result_2 = list_element(user_2.id)
 
-    assert [%{id: user_1_id}, %{id: user_2_id}] =
-             Defer.evaluate([result_1, result_2], dataloader: loader) |> Defer.get_value()
+    assert [%{id: user_1_id}, %{id: user_2_id}] = run([result_1, result_2], dataloader: loader)
 
     assert user_1_id == user_1.id
     assert user_2_id == user_2.id
   end
 
   defer def chaining_callbacks(id_1, id_2) do
-    user_1 = await(Lazyloader.retrieve(Test, User, id_1))
-    user_2 = await(Lazyloader.retrieve(Test, User, id_2))
+    user_1 = await Lazyloader.retrieve(Test, User, id_1)
+    user_2 = await Lazyloader.retrieve(Test, User, id_2)
     [user_1, user_2]
   end
 
-  test "evaluate chaining of callbacks", %{loader: loader} do
+  test "run chaining of callbacks", %{loader: loader} do
     user_1 = %User{username: "Ben Wilson"} |> Repo.insert!()
     user_2 = %User{username: "Jaap Frolich"} |> Repo.insert!()
 
     result = chaining_callbacks(user_1.id, user_2.id)
 
-    assert [%{id: user_1_id}, %{id: user_2_id}] =
-             evaluate(result, dataloader: loader) |> get_value
+    assert [%{id: user_1_id}, %{id: user_2_id}] = run(result, dataloader: loader)
 
     assert user_1_id == user_1.id
     assert user_2_id == user_2.id
   end
 
-  test "evaluate chaining of callbacks (nested)", %{loader: loader} do
+  defer def nested_chaining(id_1, id_2) do
+    loader = await Lazyloader.load(Test, User, id_1)
+    user_1 = Lazyloader.get(loader, Test, User, id_1)
+
+    loader = await Lazyloader.load(Test, User, id_2)
+    user_2 = Lazyloader.get(loader, Test, User, id_2)
+
+    [user_1, user_2]
+  end
+
+  test "run chaining of callbacks (nested)", %{loader: loader} do
     user_1 = %User{username: "Ben Wilson"} |> Repo.insert!()
     user_2 = %User{username: "Jaap Frolich"} |> Repo.insert!()
 
-    result =
-      Lazyloader.new()
-      |> then(fn _ ->
-        Lazyloader.load(Test, User, user_1.id)
-        |> then(fn deferrable ->
-          Lazyloader.get(deferrable, Test, User, user_1.id)
-        end)
-      end)
-      |> then(fn prev ->
-        Lazyloader.load(Test, User, user_2.id)
-        |> then(fn deferrable ->
-          ret_user_2 = Lazyloader.get(deferrable, Test, User, user_2.id)
-          [prev, ret_user_2]
-        end)
-      end)
+    lazy_result = nested_chaining(user_1.id, user_2.id)
 
-    assert [%{id: user_1_id}, %{id: user_2_id}] =
-             evaluate(result, dataloader: loader) |> get_value
+    assert [%{id: user_1_id}, %{id: user_2_id}] = run(lazy_result, dataloader: loader)
 
     assert user_1_id == user_1.id
     assert user_2_id == user_2.id
