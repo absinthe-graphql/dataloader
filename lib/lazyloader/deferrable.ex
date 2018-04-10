@@ -89,7 +89,7 @@ defmodule Lazyloader.Deferrable do
     if !context[:dataloader], do: raise("No dataloader found in context!")
 
     if not Deferrable.deferrable?(new_vals) do
-      new_vals
+      {new_vals, context}
     else
       Deferrable.run(new_vals, context)
     end
