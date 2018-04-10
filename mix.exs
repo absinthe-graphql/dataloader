@@ -50,7 +50,8 @@ defmodule Dataloader.Mixfile do
       {:postgrex, ">= 0.0.0", only: :test},
       {:dialyxir, "~> 0.5", only: :dev},
       {:ex_doc, ">= 0.0.0", only: [:dev]},
-      {:defer, github: "jfrolich/deferred"}
+      # {:defer, github: "jfrolich/deferred"}
+      {:defer, path: "../defer"}
     ]
   end
 
