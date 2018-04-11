@@ -30,11 +30,7 @@ defmodule Lazyloader.Deferrable do
 
   def commit_operations(dataloader, _), do: dataloader
 
-  defp run_callbacks(
-         %__MODULE__{then: nil},
-         _
-       ),
-       do: raise("No callback found")
+  defp run_callbacks(%__MODULE__{then: nil}, _), do: raise("No callback found")
 
   defp run_callbacks(
          %__MODULE__{then: then} = deferrable,
