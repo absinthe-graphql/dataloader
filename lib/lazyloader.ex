@@ -21,21 +21,31 @@ defmodule Lazyloader do
     Lazyloader.Deferrable.add_operation(deferrable, {:load, [source_name, batch_key, val]})
   end
 
-  def retrieve(source_name, batch_key, val) do
+  def get(source_name, batch_key, val) do
     Lazyloader.Deferrable.new()
-    |> retrieve(source_name, batch_key, val)
+    |> get(source_name, batch_key, val)
   end
 
-  defer def retrieve(deferrable = %Lazyloader.Deferrable{}, source_name, batch_key, val) do
+  defer def get(deferrable = %Lazyloader.Deferrable{}, source_name, batch_key, val) do
     deferrable = await load(deferrable, source_name, batch_key, val)
-    get(deferrable, source_name, batch_key, val)
+    do_get(deferrable, source_name, batch_key, val)
   end
 
-  def get(%Lazyloader.Deferrable{dataloader: loader}, source, batch_key, item_key) do
+  def get_many(source_name, batch_key, item_keys) do
+    Lazyloader.Deferrable.new()
+    |> get_many(source_name, batch_key, item_keys)
+  end
+
+  defer def get_many(deferrable = %Lazyloader.Deferrable{}, source_name, batch_key, item_keys) do
+    deferrable = await load(deferrable, source_name, batch_key, item_keys)
+    do_get_many(deferrable, source_name, batch_key, item_keys)
+  end
+
+  def do_get(%Lazyloader.Deferrable{dataloader: loader}, source, batch_key, item_key) do
     Dataloader.get(loader, source, batch_key, item_key)
   end
 
-  def get_many(
+  def do_get_many(
         %Lazyloader.Deferrable{dataloader: nil},
         _,
         _,
@@ -44,7 +54,7 @@ defmodule Lazyloader do
       when is_list(item_keys),
       do: raise("No dataloader found")
 
-  def get_many(
+  def do_get_many(
         %Lazyloader.Deferrable{dataloader: dataloader},
         source,
         batch_key,
