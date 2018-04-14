@@ -402,16 +402,25 @@ if Code.ensure_loaded?(Ecto) do
       end
 
       defp cardinality_mapper(:many, _) do
-        fn value ->
-          value
+        fn
+          value when is_list(value) -> value
+          value -> [value]
         end
       end
 
       defp cardinality_mapper(:one, queryable) do
         fn
-          [] -> nil
-          [value] -> value
-          other -> raise Ecto.MultipleResultsError, queryable: queryable, count: length(other)
+          [] ->
+            nil
+
+          [value] ->
+            value
+
+          other when is_list(other) ->
+            raise Ecto.MultipleResultsError, queryable: queryable, count: length(other)
+
+          other ->
+            other
         end
       end
     end

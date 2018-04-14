@@ -278,6 +278,7 @@ defmodule Dataloader.EctoTest do
 
   test "preloads aren't used", %{loader: loader} do
     user = %User{username: "Ben Wilson"} |> Repo.insert!()
+
     post =
       %Post{user_id: user.id}
       |> Repo.insert!()
