@@ -30,6 +30,12 @@ defmodule Dataloader.KV do
   end
 
   defimpl Dataloader.Source do
+    defp merge_results(results_a, results_b) do
+      Map.merge(results_a, results_b, fn _, v1, v2 ->
+        Map.merge(v1, v2)
+      end)
+    end
+
     def put(source, _batch, _id, nil) do
       source
     end
@@ -67,7 +73,7 @@ defmodule Dataloader.KV do
           []
         )
 
-      %{source | batches: %{}, results: Map.merge(source.results, results)}
+      %{source | batches: %{}, results: merge_results(source.results, results)}
     end
 
     def pending_batches?(source) do
