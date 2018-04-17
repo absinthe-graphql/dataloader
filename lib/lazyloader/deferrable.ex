@@ -54,44 +54,40 @@ defmodule Lazyloader.Deferrable do
 
   defp run_callbacks(other, _), do: other
 
-  defp run_dataloader(dataloader, false), do: dataloader
-  defp run_dataloader(dataloader, true), do: Dataloader.run(dataloader)
+  defp run_dataloader(dataloader, %{run_dataloader: false}), do: dataloader
+  defp run_dataloader(dataloader, _), do: Dataloader.run(dataloader)
 
   def run_once(val, context \\ %{})
 
   def run_once(
         deferrable,
-        context
+        context = %{dataloader: dataloader}
       ) do
-    if(!context[:dataloader], do: raise("No dataloader found"))
-
     dataloader =
-      context[:dataloader]
+      dataloader
       |> commit_operations(deferrable)
-      |> run_dataloader(context[:run_dataloader] != false)
+      |> run_dataloader(context)
 
-    context = put_in(context[:dataloader], dataloader)
     result = run_callbacks(deferrable, dataloader)
 
-    {result, context}
+    {result, %{context | dataloader: dataloader}}
   end
 
-  def run(val = %__MODULE__{}, context) do
-    if !context[:dataloader], do: raise("No dataloader found in context!")
+  def run_once(_, _), do: raise("No dataloader found")
 
+  def run(val = %__MODULE__{}, context) do
     {val, context} = Deferrable.run_once(val, context)
 
     Deferrable.run(val, context)
   end
 
   def run(vals, context) when is_list(vals) do
-    if !context[:dataloader], do: raise("No dataloader found in context!")
     {new_vals, context} = Deferrable.run_once(vals, context)
 
-    if not Deferrable.deferrable?(new_vals) do
-      {new_vals, context}
-    else
+    if Deferrable.deferrable?(new_vals) do
       Deferrable.run(new_vals, context)
+    else
+      {new_vals, context}
     end
   end
 
