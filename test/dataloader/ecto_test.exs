@@ -338,7 +338,7 @@ defmodule Dataloader.EctoTest do
 
     assert %Lazyloader.Deferrable{} = result
 
-    assert run(result, dataloader: loader).username == "Jaap Frolich"
+    assert run(result, %{dataloader: loader}).username == "Jaap Frolich"
   end
 
   test "run lazy values, two levels", %{loader: loader} do
@@ -357,14 +357,14 @@ defmodule Dataloader.EctoTest do
         end)
       end)
 
-    assert [%{id: user_1_id}, %{id: user_2_id}] = run(result, dataloader: loader)
+    assert [%{id: user_1_id}, %{id: user_2_id}] = run(result, %{dataloader: loader})
 
     assert user_1_id == user_1.id
     assert user_2_id == user_2.id
   end
 
   defer def list_element(id) do
-    await Lazyloader.retrieve(Test, User, id)
+    await Lazyloader.get(Test, User, id)
   end
 
   test "run list of lazy values", %{loader: loader} do
@@ -374,15 +374,15 @@ defmodule Dataloader.EctoTest do
     result_1 = list_element(user_1.id)
     result_2 = list_element(user_2.id)
 
-    assert [%{id: user_1_id}, %{id: user_2_id}] = run([result_1, result_2], dataloader: loader)
+    assert [%{id: user_1_id}, %{id: user_2_id}] = run([result_1, result_2], %{dataloader: loader})
 
     assert user_1_id == user_1.id
     assert user_2_id == user_2.id
   end
 
   defer def chaining_callbacks(id_1, id_2) do
-    user_1 = await Lazyloader.retrieve(Test, User, id_1)
-    user_2 = await Lazyloader.retrieve(Test, User, id_2)
+    user_1 = await Lazyloader.get(Test, User, id_1)
+    user_2 = await Lazyloader.get(Test, User, id_2)
     [user_1, user_2]
   end
 
@@ -392,7 +392,7 @@ defmodule Dataloader.EctoTest do
 
     result = chaining_callbacks(user_1.id, user_2.id)
 
-    assert [%{id: user_1_id}, %{id: user_2_id}] = run(result, dataloader: loader)
+    assert [%{id: user_1_id}, %{id: user_2_id}] = run(result, %{dataloader: loader})
 
     assert user_1_id == user_1.id
     assert user_2_id == user_2.id
@@ -414,7 +414,7 @@ defmodule Dataloader.EctoTest do
 
     lazy_result = nested_chaining(user_1.id, user_2.id)
 
-    assert [%{id: user_1_id}, %{id: user_2_id}] = run(lazy_result, dataloader: loader)
+    assert [%{id: user_1_id}, %{id: user_2_id}] = run(lazy_result, %{dataloader: loader})
 
     assert user_1_id == user_1.id
     assert user_2_id == user_2.id

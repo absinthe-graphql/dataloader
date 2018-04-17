@@ -57,7 +57,7 @@ defmodule Lazyloader.Deferrable do
   defp run_dataloader(dataloader, false), do: dataloader
   defp run_dataloader(dataloader, true), do: Dataloader.run(dataloader)
 
-  def run_once(val, context \\ [])
+  def run_once(val, context \\ %{})
 
   def run_once(
         deferrable,
@@ -70,7 +70,7 @@ defmodule Lazyloader.Deferrable do
       |> commit_operations(deferrable)
       |> run_dataloader(context[:run_dataloader] != false)
 
-    context = Keyword.put(context, :dataloader, dataloader)
+    context = put_in(context[:dataloader], dataloader)
     result = run_callbacks(deferrable, dataloader)
 
     {result, context}
@@ -85,8 +85,8 @@ defmodule Lazyloader.Deferrable do
   end
 
   def run(vals, context) when is_list(vals) do
-    {new_vals, context} = Deferrable.run_once(vals, context)
     if !context[:dataloader], do: raise("No dataloader found in context!")
+    {new_vals, context} = Deferrable.run_once(vals, context)
 
     if not Deferrable.deferrable?(new_vals) do
       {new_vals, context}
@@ -109,8 +109,11 @@ defmodule Lazyloader.Deferrable do
 
   # Deferrable implementation functions
   defimpl Deferrable do
-    def run(deferrable, opts \\ []), do: Lazyloader.Deferrable.run(deferrable, opts)
-    def run_once(deferrable, opts \\ []), do: Lazyloader.Deferrable.run_once(deferrable, opts)
+    def run(deferrable, context \\ %{}), do: Lazyloader.Deferrable.run(deferrable, context)
+
+    def run_once(deferrable, context \\ %{}),
+      do: Lazyloader.Deferrable.run_once(deferrable, context)
+
     def then(deferrable, callback), do: Lazyloader.Deferrable.then(deferrable, callback)
     def deferrable?(_), do: true
   end
