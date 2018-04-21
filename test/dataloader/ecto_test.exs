@@ -331,9 +331,9 @@ defmodule Dataloader.EctoTest do
     user = %User{username: "Jaap Frolich"} |> Repo.insert!()
 
     result =
-      Lazyloader.load(Test, User, user.id)
-      |> then(fn deferrable ->
-        Lazyloader.get(deferrable, Test, User, user.id)
+      Lazyloader.get(Test, User, user.id)
+      |> then(fn user ->
+        user
       end)
 
     assert %Lazyloader.Deferrable{} = result
@@ -346,13 +346,10 @@ defmodule Dataloader.EctoTest do
     user_2 = %User{username: "Jaap Frolich"} |> Repo.insert!()
 
     result =
-      Lazyloader.load(Test, User, user_1.id)
-      |> then(fn deferrable ->
-        ret_user_1 = Lazyloader.get(deferrable, Test, User, user_1.id)
-
-        Lazyloader.load(Test, User, user_2.id)
-        |> then(fn deferrable ->
-          ret_user_2 = Lazyloader.get(deferrable, Test, User, user_2.id)
+      Lazyloader.get(Test, User, user_1.id)
+      |> then(fn ret_user_1 ->
+        Lazyloader.get(Test, User, user_2.id)
+        |> then(fn ret_user_2 ->
           [ret_user_1, ret_user_2]
         end)
       end)
@@ -399,11 +396,8 @@ defmodule Dataloader.EctoTest do
   end
 
   defer def nested_chaining(id_1, id_2) do
-    loader = await Lazyloader.load(Test, User, id_1)
-    user_1 = Lazyloader.get(loader, Test, User, id_1)
-
-    loader = await Lazyloader.load(Test, User, id_2)
-    user_2 = Lazyloader.get(loader, Test, User, id_2)
+    user_1 = await Lazyloader.get(Test, User, id_1)
+    user_2 = await Lazyloader.get(Test, User, id_2)
 
     [user_1, user_2]
   end

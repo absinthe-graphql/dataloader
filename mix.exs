@@ -1,7 +1,7 @@
 defmodule Dataloader.Mixfile do
   use Mix.Project
 
-  @version "1.0.1"
+  @version "2.0.1"
 
   def project do
     [
@@ -19,9 +19,10 @@ defmodule Dataloader.Mixfile do
 
   defp package do
     [
+      name: :lazyloader,
       description: "Efficient batch loading in Elixir",
       files: ["lib", "mix.exs", "README*"],
-      maintainers: ["Ben Wilson"],
+      maintainers: ["Ben Wilson", "Jaap Frolich"],
       licenses: ["MIT"],
       links: %{github: "https://github.com/absinthe-graphql/dataloader"}
     ]
@@ -50,8 +51,9 @@ defmodule Dataloader.Mixfile do
       {:postgrex, ">= 0.0.0", only: :test},
       {:dialyxir, "~> 0.5", only: :dev},
       {:ex_doc, ">= 0.0.0", only: [:dev]},
+      {:defer, ">= 0.1.1"}
       # {:defer, github: "jfrolich/deferred"}
-      {:defer, path: "../defer"}
+      # {:defer, path: "../defer"}
     ]
   end
 
