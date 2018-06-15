@@ -10,6 +10,8 @@ if Code.ensure_loaded?(Ecto) do
 
     ## Basic Usage
 
+    Querying by primary key (analogous to Ecto.Repo.get/3):
+
     ```elixir
     source = Dataloader.Ecto.new(MyApp.Repo)
 
@@ -21,12 +23,37 @@ if Code.ensure_loaded?(Ecto) do
       |> Dataloader.run
 
     organizations = Dataloader.get(loader, Accounts, Organization, [4,9])
+    ```
 
+    Querying for associations. Here we look up the `:users` association on all
+    the organizations, and the :organization for a single user.
+
+    ```elixir
     loader =
       loader
+      |> Dataloader.load(Accounts, :organization, user)
       |> Dataloader.load_many(Accounts, :users, organizations)
       |> Dataloader.run
     ```
+
+    Querying by a column other than the primary key:
+
+    ```elixir
+    loader =
+      loader
+      |> Dataloader.load(Accounts, {:one, User}, name: "admin")
+      |> Dataloader.run
+    ```
+
+    Here we pass a keyword list of length one. It is only possible to
+    query by one column here; for more complex queries, see "filtering" below.
+
+    Notice here that we need to also specify the cardinality in the batch_key
+    (`:many` or `:one`), which will decide whether to return a list or a single
+    value (or nil). This is because the column may not be a key and there may be
+    multiple matching records. Note also that even if we are returning `:many` values
+    here  from multiple matching records, this is still a call to `load/4` rather than
+    `load_many/4` because there is only one val specified.
 
     ## Filtering / Ordering
 
@@ -41,13 +68,15 @@ if Code.ensure_loaded?(Ecto) do
       |> Dataloader.add_source(Accounts, source)
     ```
 
-    When we call `load/4` we can pass in a tuple as the batch key
+    When we call `load/4` we can pass in a tuple as the batch key with a keyword list
+    of parameters in addition to the queryable or assoc_field
 
     ```elixir
+    # with a queryable
     loader
     |> Dataloader.load(Accounts, {User, order: :name}, 1)
 
-    # or
+    # or an association
     loader
     |> Dataloader.load_many(Accounts, {:users, order: :name}, organizations)
 
@@ -57,7 +86,7 @@ if Code.ensure_loaded?(Ecto) do
 
     # as is this
     loader
-    |> Dataloader.load(:accounts, :user, :organization)
+    |> Dataloader.load(:accounts, :user, organization)
     ```
 
     In all cases the `Accounts.query` function would be:
