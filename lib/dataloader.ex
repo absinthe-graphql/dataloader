@@ -88,6 +88,11 @@ defmodule Dataloader do
     if pending_batches?(dataloader) do
       fun = fn {name, source} -> {name, Source.run(source)} end
 
+      # This function behaves unexpectedly when the source times out; it drops
+      # the source! For example, if we have a single source and it times out,
+      # `pmap` silently accepts the failure and returns `[]`... which then
+      # turns our `sources` into an empty map here!
+      #
       sources =
         dataloader.sources
         |> pmap(
