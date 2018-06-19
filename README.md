@@ -6,8 +6,7 @@ changes to better suite Elixir use cases.
 
 ## Installation
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `dataloader` to your list of dependencies in `mix.exs`:
+The package can be installed by adding [`dataloader`](https://hex.pm/packages/dataloader) to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
@@ -60,6 +59,4 @@ Dataloader ships with two different built in sources. The first is the Ecto sour
 
 Anything that implements the `Dataloader.Source` protocol can act as a source.
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at [https://hexdocs.pm/dataloader](https://hexdocs.pm/dataloader).
+Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc). The docs can be found at [https://hexdocs.pm/dataloader](https://hexdocs.pm/dataloader).
