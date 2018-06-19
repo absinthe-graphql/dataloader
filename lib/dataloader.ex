@@ -108,15 +108,11 @@ defmodule Dataloader do
   defp dataloader_timeout(dataloader) do
     max_source_timeout =
       dataloader.sources
-      |> Enum.map(fn {_, source} -> source_timeout(source) end)
+      |> Enum.map(fn {_, source} -> Source.timeout(source) end)
       |> Enum.max()
 
     (max_source_timeout || @default_timeout) + :timer.seconds(1)
   end
-
-  defp source_timeout(%{opts: opts}), do: opts[:timeout]
-  defp source_timeout(%{options: options}), do: options[:timeout]
-  defp source_timeout(_source_without_options), do: @default_timeout
 
   @spec get(t, source_name, any, any) :: any | no_return()
   def get(loader, source, batch_key, item_key) do

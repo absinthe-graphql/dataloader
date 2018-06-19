@@ -79,5 +79,9 @@ defmodule Dataloader.KV do
     def pending_batches?(source) do
       source.batches != %{}
     end
+
+    def timeout(%{opts: opts}) do
+      opts[:timeout]
+    end
   end
 end
