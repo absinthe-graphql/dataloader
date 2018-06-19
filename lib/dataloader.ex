@@ -55,6 +55,8 @@ defmodule Dataloader do
   @type option :: {:timeout, pos_integer}
   @type source_name :: any
 
+  @default_timeout 15_000
+
   @spec new([option]) :: t
   def new(opts \\ []), do: %__MODULE__{options: opts}
 
@@ -93,7 +95,7 @@ defmodule Dataloader do
         |> pmap(
           fun,
           tag: "Source",
-          timeout: dataloader.options[:timeout] || 15_000
+          timeout: dataloader_timeout(dataloader)
         )
         |> Map.new()
 
@@ -102,6 +104,19 @@ defmodule Dataloader do
       dataloader
     end
   end
+
+  defp dataloader_timeout(dataloader) do
+    max_source_timeout =
+      dataloader.sources
+      |> Enum.map(fn {_, source} -> source_timeout(source) end)
+      |> Enum.max()
+
+    (max_source_timeout || @default_timeout) + :timer.seconds(1)
+  end
+
+  defp source_timeout(%{opts: opts}), do: opts[:timeout]
+  defp source_timeout(%{options: options}), do: options[:timeout]
+  defp source_timeout(_source_without_options), do: @default_timeout
 
   @spec get(t, source_name, any, any) :: any | no_return()
   def get(loader, source, batch_key, item_key) do
@@ -146,7 +161,7 @@ defmodule Dataloader do
   @doc false
   def pmap(items, fun, opts) do
     options = [
-      timeout: opts[:timeout] || 15_000,
+      timeout: opts[:timeout] || @default_timeout,
       on_timeout: :kill_task
     ]
 
