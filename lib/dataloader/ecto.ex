@@ -294,6 +294,10 @@ if Code.ensure_loaded?(Ecto) do
         batches != %{}
       end
 
+      def timeout(%{options: options}) do
+        options[:timeout]
+      end
+
       defp chase_down_queryable([field], schema) do
         case schema.__schema__(:association, field) do
           %{queryable: queryable} ->

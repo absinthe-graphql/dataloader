@@ -33,4 +33,13 @@ defprotocol Dataloader.Source do
   """
   @spec put(t, batch_key, item_key, term) :: t
   def put(source, batch_key, item_key, item)
+
+  @doc """
+  Returns the timeout (in ms) for the source.
+
+  This is important for ensuring the dataloader obeys the timeouts when running
+  multiple sources concurrently
+  """
+  @spec timeout(t) :: number
+  def timeout(source)
 end
