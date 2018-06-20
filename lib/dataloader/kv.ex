@@ -30,8 +30,31 @@ defmodule Dataloader.KV do
   end
 
   defimpl Dataloader.Source do
-    defp merge_results(results_a, results_b) do
-      Map.merge(results_a, results_b, fn _, v1, v2 ->
+    defp merge_results(existing_results, new_results) do
+      new_results
+      |> Enum.reduce(existing_results, fn {batch_info, data}, acc ->
+        case data do
+          {:error, reason} ->
+            merge_errors(acc, batch_info, reason)
+
+          {:ok, data} ->
+            merge(acc, Map.new([data]))
+        end
+      end)
+    end
+
+    defp merge_errors(acc, {batch_key, batch}, reason) do
+      errors =
+        batch
+        |> Enum.reduce(%{}, fn key, acc ->
+          Map.put(acc, key, {:error, reason})
+        end)
+
+      merge(acc, %{batch_key => errors})
+    end
+
+    defp merge(acc, results) do
+      Map.merge(acc, results, fn _, v1, v2 ->
         Map.merge(v1, v2)
       end)
     end
@@ -47,7 +70,7 @@ defmodule Dataloader.KV do
 
     def load(source, batch_key, id) do
       case fetch(source, batch_key, id) do
-        :error ->
+        {:error, _message} ->
           update_in(source.batches, fn batches ->
             Map.update(batches, batch_key, MapSet.new([id]), &MapSet.put(&1, id))
           end)
@@ -59,19 +82,22 @@ defmodule Dataloader.KV do
 
     def fetch(source, batch_key, id) do
       with {:ok, batch} <- Map.fetch(source.results, batch_key) do
-        Map.fetch(batch, id)
+        case Map.get(batch, id) do
+          {:error, reason} -> {:error, reason}
+          item -> {:ok, item}
+        end
+      else
+        :error ->
+          {:error, "Unable to find batch #{inspect(batch_key)}"}
       end
     end
 
     def run(source) do
-      results =
-        source.batches
-        |> Dataloader.pmap(
-          fn {batch_key, ids} ->
-            {batch_key, source.load_function.(batch_key, ids)}
-          end,
-          []
-        )
+      fun = fn {batch_key, ids} ->
+        {batch_key, source.load_function.(batch_key, ids)}
+      end
+
+      results = Dataloader.async_safely(Dataloader, :run_tasks, [source.batches, fun])
 
       %{source | batches: %{}, results: merge_results(source.results, results)}
     end

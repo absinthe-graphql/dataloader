@@ -309,4 +309,39 @@ defmodule Dataloader.EctoTest do
 
     assert loader_called_once == loader_called_twice
   end
+
+  test "when the query fails to find a record it raises an error", %{loader: loader} do
+    assert_raise Dataloader.GetError, ~r/Unable to find batch/, fn ->
+      Dataloader.get(loader, Test, User, "doesn't exist")
+    end
+  end
+
+  test "when dataloader times out it raises an error" do
+    user =
+      %User{username: "Ben Wilson"}
+      |> Repo.insert!()
+
+    source =
+      Dataloader.Ecto.new(
+        Repo,
+        timeout: 1,
+        query: fn queryable, _ ->
+          :timer.sleep(5)
+          queryable
+        end
+      )
+
+    loader =
+      Dataloader.new()
+      |> Dataloader.add_source(Timeout, source)
+
+    loader =
+      loader
+      |> Dataloader.load(Timeout, User, user.id)
+      |> Dataloader.run()
+
+    assert_raise Dataloader.GetError, ~r/:timeout/, fn ->
+      Dataloader.get(loader, Timeout, User, user.id)
+    end
+  end
 end
