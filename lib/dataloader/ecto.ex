@@ -164,7 +164,7 @@ if Code.ensure_loaded?(Ecto) do
             {:query, query_fun}
             | {:repo_opts, Keyword.t()}
             | {:timeout, pos_integer}
-            | {:run_batch, fun()}
+            | {:run_batch, batch_fun()}
 
     import Ecto.Query
 
