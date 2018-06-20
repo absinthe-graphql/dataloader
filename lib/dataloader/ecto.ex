@@ -234,8 +234,7 @@ if Code.ensure_loaded?(Ecto) do
           source.batches
           |> Dataloader.pmap(
             &run_batch(&1, source),
-            timeout: source.options[:timeout] || 15_000,
-            tag: "Ecto batch"
+            timeout: source.options[:timeout] || 15_000
           )
 
         results =

@@ -1,4 +1,9 @@
 defmodule Dataloader do
+  defmodule GetError do
+    defexception message:
+                   "Failed to get data, this may mean it has not been loaded, see Dataloader documentation for more info."
+  end
+
   @moduledoc """
   # Dataloader
 
@@ -94,9 +99,12 @@ defmodule Dataloader do
         dataloader.sources
         |> pmap(
           fun,
-          tag: "Source",
           timeout: dataloader_timeout(dataloader)
         )
+        |> Enum.map(fn
+          {_source, {:ok, {name, source}}} -> {name, source}
+          {_source, {:error, reason}} -> {:error, reason}
+        end)
         |> Map.new()
 
       %{dataloader | sources: sources}
@@ -122,8 +130,20 @@ defmodule Dataloader do
     |> do_get
   end
 
+  # TODO: The nested ok's here are horrendous, as is the nil case. I need to
+  # tidy this up to be more sane; it's likely because of the nested pmaps and
+  # the way I've crowbarred in `KV`, need to revisit this.
+  defp do_get({:ok, {:ok, {:error, reason}}}), do: raise(Dataloader.GetError, inspect(reason))
+  defp do_get({:ok, {:ok, val}}), do: val
+
+  # These two clauses are primarily for backwards compatibility with sources
+  # that aren't returning appropriate ok/error tuples. This may or may not
+  # survive the full refactor though.
+  #
+  # NOTE: Raising on error is a new behaviour though, that should arguably just
+  # be `nil` if this is just for backwards compatibility
   defp do_get({:ok, val}), do: val
-  defp do_get(:error), do: nil
+  defp do_get(:error), do: raise(Dataloader.GetError)
 
   @spec get_many(t, source_name, any, any) :: [any] | no_return()
   def get_many(loader, source, batch_key, item_keys) when is_list(item_keys) do
@@ -155,7 +175,40 @@ defmodule Dataloader do
   end
 
   @doc false
-  def pmap(items, fun, opts) do
+  # This function should be documented more completely, as it's a core function
+  # used by both this module and both predefined sources. Spec should be (I
+  # think!):
+  #
+  # @spec pmap(list(), fun(), keyword()) :: map({any(), any()})
+  #
+  # Current constraints that I'm questioning in this PR:
+  #
+  # - `fun` must return a `{key, result}` tuple
+  # - If any `fun` errors for whatever reason, nothing gets added to the return
+  #   value for that item, effectively swallowing any error
+  # - There's not necessarily a relation between the `items` parameter and the
+  #   keys in the returned map, so debugging is hard and the code is difficult
+  #   to reason about
+  #
+  # Proposed changes:
+  #
+  # - Return a map where the keys are the originally passed-in `items`, rather
+  #   than letting `fun` define them.
+  # - `fun` should return an `:ok`/`:error` tuple with the result of the query.
+  #   We have the keys already in `items`, so let's return a map keyed off of
+  #   that. The key reason for this is that we now have all the info we need
+  #   when accessing the data to either raise or return, rather than losing it
+  #   completely.
+  #     - NOTE: This isn't perfect yet though because of the reuse between
+  #     `Dataloader.run` and `Source.run` implementations. The former has no
+  #     concept of "keys" because it's just passing in sources  and assuming
+  #     they come out the same way at the other end, whereas the other one has
+  #     a concept of "keys" backed into it but hidden as part of a tuple in
+  #     `items`. This is the main reason I consider this ripe for a refactor...
+  # - Document!
+  # - Consider renaming and extracting from here
+  #
+  def pmap(items, fun, opts \\ []) do
     options = [
       timeout: opts[:timeout] || @default_timeout,
       on_timeout: :kill_task
@@ -176,15 +229,25 @@ defmodule Dataloader do
         # back no matter what.
         Process.flag(:trap_exit, true)
 
-        task_super
-        |> Task.Supervisor.async_stream(items, fun, options)
-        |> Enum.reduce(%{}, fn
-          {:ok, {key, value}}, results ->
-            Map.put(results, key, value)
+        results =
+          task_super
+          |> Task.Supervisor.async_stream(items, fun, options)
+          |> Enum.map(fn
+            {:ok, result} -> {:ok, result}
+            {:exit, reason} -> {:error, reason}
+          end)
 
-          _, results ->
-            results
-        end)
+        # TODO: What about duplicate keys? I'm not sure this is enough. Write
+        # some tests to clarify the behaviour here
+        #
+        # TODO: When called from `Dataloader.run/1`, the items are a list of
+        # sources, so keying the results map off them is fine. But when we're
+        # calling with sources, this appears to be a `{batch_key, batch}`
+        # tuple, which makes this a bit odd to key off; or maybe not? Needs a
+        # bit more thought.
+        #
+        Enum.zip(items, results)
+        |> Map.new()
       end)
 
     # The infinity is safe here because the internal

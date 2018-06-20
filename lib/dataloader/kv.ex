@@ -30,8 +30,33 @@ defmodule Dataloader.KV do
   end
 
   defimpl Dataloader.Source do
-    defp merge_results(results_a, results_b) do
-      Map.merge(results_a, results_b, fn _, v1, v2 ->
+    defp merge_results(existing_results, new_results) do
+      new_results
+      |> Enum.reduce(existing_results, fn {batch_info, data}, acc ->
+        case data do
+          {:error, reason} ->
+            merge_errors(acc, batch_info, reason)
+
+          {:ok, data} ->
+            merge(acc, Map.new([data]))
+        end
+      end)
+    end
+
+    # TODO: Why is this different from success? The data being passed around
+    # must still be a little inconsistent, so need to dig in a bit more
+    defp merge_errors(acc, {batch_key, batch}, reason) do
+      errors =
+        batch
+        |> Enum.reduce(%{}, fn key, acc ->
+          Map.put(acc, key, {:error, reason})
+        end)
+
+      merge(acc, %{batch_key => errors})
+    end
+
+    defp merge(acc, results) do
+      Map.merge(acc, results, fn _, v1, v2 ->
         Map.merge(v1, v2)
       end)
     end
@@ -59,7 +84,7 @@ defmodule Dataloader.KV do
 
     def fetch(source, batch_key, id) do
       with {:ok, batch} <- Map.fetch(source.results, batch_key) do
-        Map.fetch(batch, id)
+        {:ok, Map.fetch(batch, id)}
       end
     end
 

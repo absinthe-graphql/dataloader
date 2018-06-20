@@ -17,7 +17,7 @@ defprotocol Dataloader.Source do
   @doc """
   Fetch the result found under the given batch and item keys.
   """
-  @spec fetch(t, batch_key, item_key) :: {:ok, term} | :error
+  @spec fetch(t, batch_key, item_key) :: {:ok, term} | {:error, term}
   def fetch(source, batch_key, item_key)
 
   @doc """
