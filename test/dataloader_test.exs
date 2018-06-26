@@ -18,4 +18,16 @@ defmodule DataloaderTest do
 
     assert log =~ "boom"
   end
+
+  test "fails silently and returns an empty map of sources if things timeout" do
+    source = %Dataloader.TestSource{}
+
+    dataloader =
+      Dataloader.new(timeout: 1) # Note the short timeout
+      |> Dataloader.add_source(:test, source)
+
+    new_dataloader = Dataloader.run(dataloader)
+
+    assert dataloader == new_dataloader
+  end
 end
