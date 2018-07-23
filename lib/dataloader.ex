@@ -56,6 +56,17 @@ defmodule Dataloader do
   * `get_policy` - This configures how the dataloader will behave when fetching
     data which may have errored when we tried  to `load` it.
 
+  These can be set as part of the `new/1` call. So, for example, to
+  configure a dataloader that returns `nil` on error with a 5s timeout:
+
+  ```elixir
+  loader =
+    Dataloader.new(
+      get_policy: :return_nil_on_error,
+      timeout: :timer.seconds(5)
+    )
+  ```
+
   ### `get_policy`
 
   There are three implemented behaviours for this:
@@ -69,14 +80,6 @@ defmodule Dataloader do
     depending on a successful or failed load, allowing for more fine-grained
     error handling if required
 
-  These can be configured on a global way by configuring in your config.exs
-  file, e.g. to configure it to return nil on error:
-
-      config :dataloader,
-        get_policy: :return_nil_on_error
-
-  Alternatively, these can be set on individual `Dataloader` structs when
-  calling `new/1`
   """
   defstruct sources: %{},
             options: []
@@ -95,7 +98,7 @@ defmodule Dataloader do
   @default_timeout 15_000
   def default_timeout, do: @default_timeout
 
-  @default_get_policy Application.get_env(:dataloader, :get_policy, :raise_on_error)
+  @default_get_policy :raise_on_error
 
   @spec new([option]) :: t
   def new(opts \\ []) do
