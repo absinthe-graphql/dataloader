@@ -1,5 +1,6 @@
 defmodule Dataloader.KVTest do
   use ExUnit.Case, async: true
+  import ExUnit.CaptureLog
 
   @data [
     users: [
@@ -69,11 +70,104 @@ defmodule Dataloader.KVTest do
     refute_receive(:querying)
   end
 
+  test "raises with when fetching values that failed to load", %{loader: loader} do
+    user_ids = ~w(ben bruce something_that_errors)
+
+    log =
+      capture_log(fn ->
+        loader =
+          loader
+          |> Dataloader.load_many(Test, :users, user_ids)
+          |> Dataloader.run()
+
+        assert_raise Dataloader.GetError,
+                     ~r/Failed when fetching key 'something_that_errors'/,
+                     fn ->
+                       loader
+                       |> Dataloader.get(Test, :users, "something_that_errors")
+                     end
+
+        assert_raise Dataloader.GetError,
+                     ~r/Failed when fetching key 'something_that_errors'/,
+                     fn ->
+                       loader
+                       |> Dataloader.get_many(Test, :users, ~w(something_that_errors))
+                     end
+
+        assert_raise Dataloader.GetError,
+                     ~r/Failed when fetching key 'something_that_errors'/,
+                     fn ->
+                       loader
+                       |> Dataloader.get_many(Test, :users, user_ids)
+                     end
+      end)
+
+    assert log =~ "Failed when fetching key 'something_that_errors'"
+  end
+
+  test "batches that succeed can still return data if there are failures in other batches", %{
+    loader: loader
+  } do
+    user_ids = ~w(ben bruce)
+
+    log =
+      capture_log(fn ->
+        loader =
+          loader
+          |> Dataloader.load_many(Test, :users, user_ids)
+          |> Dataloader.load(Test, :books, "something_that_errors")
+          |> Dataloader.run()
+
+        loaded_users =
+          loader
+          |> Dataloader.get_many(Test, :users, user_ids)
+
+        assert @data[:users] == loaded_users
+
+        assert_raise Dataloader.GetError,
+                     ~r/Failed when fetching key 'something_that_errors'/,
+                     fn ->
+                       loader
+                       |> Dataloader.get(Test, :books, "something_that_errors")
+                     end
+      end)
+
+    assert log =~ "Failed when fetching key 'something_that_errors'"
+  end
+
+  test "raises default error if not loaded yet", %{loader: loader} do
+    assert_raise Dataloader.GetError, ~r/Unable to find batch :users/, fn ->
+      loader
+      |> Dataloader.get(Test, :users, "doesn't exist")
+    end
+  end
+
+  test "returns nil for a key if we've loaded it but it can't be found", %{loader: loader} do
+    not_found_users =
+      loader
+      |> Dataloader.load(Test, :users, "not_found")
+      |> Dataloader.run()
+      |> Dataloader.get_many(Test, :users, ~w(not_found))
+
+    assert not_found_users == [nil]
+  end
+
   defp query(batch_key, ids, test_pid) do
     send(test_pid, :querying)
 
-    for item <- @data[batch_key], item[:id] in ids, into: %{} do
-      {item[:id], item}
+    for id <- ids, into: %{} do
+      query(batch_key, id)
     end
+  end
+
+  defp query(_batch_key, "something_that_errors"),
+    do: raise("Failed when fetching key 'something_that_errors'")
+
+  defp query(batch_key, id) do
+    item =
+      @data[batch_key]
+      |> Enum.find(fn data -> data[:id] == id end)
+
+    {id, item}
   end
 end

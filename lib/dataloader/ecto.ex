@@ -230,28 +230,36 @@ if Code.ensure_loaded?(Ecto) do
 
     defimpl Dataloader.Source do
       def run(source) do
-        results =
-          source.batches
-          |> Dataloader.pmap(
-            &run_batch(&1, source),
-            timeout: source.options[:timeout] || 15_000,
-            tag: "Ecto batch"
-          )
+        results = Dataloader.async_safely(__MODULE__, :run_batches, [source])
 
         results =
-          Map.merge(source.results, results, fn _, v1, v2 ->
-            Map.merge(v1, v2)
+          Map.merge(source.results, results, fn _, {:ok, v1}, {:ok, v2} ->
+            {:ok, Map.merge(v1, v2)}
           end)
 
         %{source | results: results, batches: %{}}
       end
 
-      def fetch(%{results: results} = source, batch, item) do
-        batch = normalize_key(batch, source.default_params)
-        {batch_key, item_key, _item} = get_keys(batch, item)
+      def fetch(source, batch_key, item) do
+        normalized_batch_key = normalize_key(batch_key, source.default_params)
 
-        with {:ok, batch} <- Map.fetch(results, batch_key) do
-          Map.fetch(batch, item_key)
+        {batch_key, item_key, _item} = get_keys(normalized_batch_key, item)
+
+        with {:ok, batch} <- Map.fetch(source.results, batch_key) do
+          fetch_item_from_batch(batch, item_key)
+        else
+          :error ->
+            {:error, "Unable to find batch #{inspect(batch_key)}"}
+        end
+      end
+
+      defp fetch_item_from_batch(tried_and_failed = {:error, _reason}, _item_key),
+        do: tried_and_failed
+
+      defp fetch_item_from_batch({:ok, batch}, item_key) do
+        case Map.fetch(batch, item_key) do
+          :error -> {:error, "Unable to find item #{inspect(item_key)} in batch"}
+          result -> result
         end
       end
 
@@ -267,7 +275,7 @@ if Code.ensure_loaded?(Ecto) do
           Map.update(
             source.results,
             batch_key,
-            %{item_key => result},
+            {:ok, %{item_key => result}},
             &Map.put(&1, item_key, result)
           )
 
@@ -276,7 +284,7 @@ if Code.ensure_loaded?(Ecto) do
 
       def load(source, batch, item) do
         case fetch(source, batch, item) do
-          :error ->
+          {:error, _message} ->
             batch = normalize_key(batch, source.default_params)
             {batch_key, item_key, item} = get_keys(batch, item)
             entry = {item_key, item}
@@ -389,6 +397,26 @@ if Code.ensure_loaded?(Ecto) do
 
       defp normalize_key(key, default_params) do
         {key, default_params}
+      end
+
+      def run_batches(task_supervisor, source) do
+        options = [
+          timeout: source.options[:timeout] || Dataloader.default_timeout(),
+          on_timeout: :kill_task
+        ]
+
+        results =
+          task_supervisor
+          |> Task.Supervisor.async_stream(source.batches, &run_batch(&1, source), options)
+          |> Enum.map(fn
+            {:ok, {_key, result}} -> {:ok, result}
+            {:exit, reason} -> {:error, reason}
+          end)
+
+        source.batches
+        |> Enum.map(fn {key, _set} -> key end)
+        |> Enum.zip(results)
+        |> Map.new()
       end
 
       defp run_batch(

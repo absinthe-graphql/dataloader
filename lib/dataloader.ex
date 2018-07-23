@@ -1,4 +1,9 @@
 defmodule Dataloader do
+  defmodule GetError do
+    defexception message:
+                   "Failed to get data, this may mean it has not been loaded, see Dataloader documentation for more info."
+  end
+
   @moduledoc """
   # Dataloader
 
@@ -40,6 +45,41 @@ defmodule Dataloader do
   have a different source used for each context. This provides an easy way to
   enforce data access rules within each context. See the `DataLoader.Ecto`
   moduledocs for more details
+
+  ## Options
+
+  There are two configuration options:
+
+  * `timeout` - The maximum timeout to wait for running a source, defaults to
+    1s more than the maximum timeout of all added sources. Set with care,
+    timeouts should really only be set on sources.
+  * `get_policy` - This configures how the dataloader will behave when fetching
+    data which may have errored when we tried  to `load` it.
+
+  These can be set as part of the `new/1` call. So, for example, to
+  configure a dataloader that returns `nil` on error with a 5s timeout:
+
+  ```elixir
+  loader =
+    Dataloader.new(
+      get_policy: :return_nil_on_error,
+      timeout: :timer.seconds(5)
+    )
+  ```
+
+  ### `get_policy`
+
+  There are three implemented behaviours for this:
+
+  * `raise_on_error` (default)- If successful, calling `get/4` or `get_many/4`
+    will return the value. If there was an exception when trying to load any of
+    the data, it will raise that exception
+  * `return_nil_on_error` - Behaves similar to `raise_on_error` but will just
+    return `nil` instead of `raising`. It will still log errors
+  * `tuples` - This will return `{:ok, value}`/`{:error, reason}` tuples
+    depending on a successful or failed load, allowing for more fine-grained
+    error handling if required
+
   """
   defstruct sources: %{},
             options: []
@@ -52,13 +92,22 @@ defmodule Dataloader do
           options: [option]
         }
 
-  @type option :: {:timeout, pos_integer}
+  @type option :: {:timeout, pos_integer} | {:get_policy, atom()}
   @type source_name :: any
 
   @default_timeout 15_000
+  def default_timeout, do: @default_timeout
+
+  @default_get_policy :raise_on_error
 
   @spec new([option]) :: t
-  def new(opts \\ []), do: %__MODULE__{options: opts}
+  def new(opts \\ []) do
+    opts =
+      [get_policy: @default_get_policy]
+      |> Keyword.merge(opts)
+
+    %__MODULE__{options: opts}
+  end
 
   @spec add_source(t, source_name, Dataloader.Source.t()) :: t
   def add_source(%{sources: sources} = loader, name, source) do
@@ -91,12 +140,15 @@ defmodule Dataloader do
       fun = fn {name, source} -> {name, Source.run(source)} end
 
       sources =
-        dataloader.sources
-        |> pmap(
+        async_safely(__MODULE__, :run_tasks, [
+          dataloader.sources,
           fun,
-          tag: "Source",
-          timeout: dataloader_timeout(dataloader)
-        )
+          [timeout: dataloader_timeout(dataloader)]
+        ])
+        |> Enum.map(fn
+          {_source, {:ok, {name, source}}} -> {name, source}
+          {_source, {:error, reason}} -> {:error, reason}
+        end)
         |> Map.new()
 
       %{dataloader | sources: sources}
@@ -115,26 +167,32 @@ defmodule Dataloader do
   end
 
   @spec get(t, source_name, any, any) :: any | no_return()
-  def get(loader, source, batch_key, item_key) do
+  def get(loader = %Dataloader{options: options}, source, batch_key, item_key) do
     loader
     |> get_source(source)
     |> Source.fetch(batch_key, item_key)
-    |> do_get
+    |> do_get(options[:get_policy])
   end
 
-  defp do_get({:ok, val}), do: val
-  defp do_get(:error), do: nil
-
   @spec get_many(t, source_name, any, any) :: [any] | no_return()
-  def get_many(loader, source, batch_key, item_keys) when is_list(item_keys) do
+  def get_many(loader = %Dataloader{options: options}, source, batch_key, item_keys)
+      when is_list(item_keys) do
     source = get_source(loader, source)
 
     for key <- item_keys do
       source
       |> Source.fetch(batch_key, key)
-      |> do_get
+      |> do_get(options[:get_policy])
     end
   end
+
+  defp do_get({:ok, val}, :raise_on_error), do: val
+  defp do_get({:ok, val}, :return_nil_on_error), do: val
+  defp do_get({:ok, val}, :tuples), do: {:ok, val}
+
+  defp do_get({:error, reason}, :raise_on_error), do: raise(Dataloader.GetError, inspect(reason))
+  defp do_get({:error, _reason}, :return_nil_on_error), do: nil
+  defp do_get({:error, reason}, :tuples), do: {:error, reason}
 
   def put(loader, source_name, batch_key, item_key, result) do
     source =
@@ -154,16 +212,28 @@ defmodule Dataloader do
     loader.sources[source_name] || raise "Source does not exist: #{inspect(source_name)}"
   end
 
-  @doc false
-  def pmap(items, fun, opts) do
-    options = [
-      timeout: opts[:timeout] || @default_timeout,
-      on_timeout: :kill_task
-    ]
+  @doc """
+  This is a helper method to run a set of async tasks in a separate supervision
+  tree which:
 
+  1. Is run by a supervisor linked to the main process. This ensures any async
+     tasks will get killed if the main process is killed.
+  2. Spawns a separate task which traps exits for running the provided
+     function. This ensures we will always have some output, but are not
+     setting `:trap_exit` on the main process.
+
+  **NOTE**: The provided `fun` must accept a `Task.Supervisor` as its first
+  argument, as this function will prepend the relevant supervisor to `args`
+
+  See `run_tasks/4` for an example of a `fun` implementation, this will return
+  whatever that returns.
+  """
+  @spec async_safely(module(), atom(), list()) :: any()
+  def async_safely(mod, fun, args \\ []) do
     # This supervisor exists to help ensure that the spawned tasks will die as
     # promptly as possible if the current process is killed.
-    {:ok, task_super} = Task.Supervisor.start_link([])
+    {:ok, task_supervisor} = Task.Supervisor.start_link([])
+    args = [task_supervisor | args]
 
     # The intermediary task is spawned here so that the `:trap_exit` flag does
     # not lead to rogue behaviour within the current process. This could happen
@@ -176,19 +246,70 @@ defmodule Dataloader do
         # back no matter what.
         Process.flag(:trap_exit, true)
 
-        task_super
-        |> Task.Supervisor.async_stream(items, fun, options)
-        |> Enum.reduce(%{}, fn
-          {:ok, {key, value}}, results ->
-            Map.put(results, key, value)
-
-          _, results ->
-            results
-        end)
+        apply(mod, fun, args)
       end)
 
     # The infinity is safe here because the internal
     # tasks all have their own timeout.
     Task.await(task, :infinity)
+  end
+
+  @doc ~S"""
+  This helper function will call `fun` on all `items` asynchronously, returning
+  a map of `:ok`/`:error` tuples, keyed off the `items`. For example:
+
+      iex> {:ok, task_supervisor} = Task.Supervisor.start_link([])
+      ...> Dataloader.run_tasks(task_supervisor, [1,2,3], fn x -> x * x end, [])
+      %{
+        1 => {:ok, 1},
+        2 => {:ok, 4},
+        3 => {:ok, 9}
+      }
+
+  Similarly, for errors:
+
+      iex> {:ok, task_supervisor} = Task.Supervisor.start_link([])
+      ...> Dataloader.run_tasks(task_supervisor, [1,2,3], fn _x -> Process.sleep(5) end, [timeout: 1])
+      %{
+        1 => {:error, :timeout},
+        2 => {:error, :timeout},
+        3 => {:error, :timeout}
+      }
+  """
+  @spec run_tasks(Task.Supervisor.t(), list(), fun(), keyword()) :: map()
+  def run_tasks(task_supervisor, items, fun, opts \\ []) do
+    task_opts = [
+      timeout: opts[:timeout] || @default_timeout,
+      on_timeout: :kill_task
+    ]
+
+    results =
+      task_supervisor
+      |> Task.Supervisor.async_stream(items, fun, task_opts)
+      |> Enum.map(fn
+        {:ok, result} -> {:ok, result}
+        {:exit, reason} -> {:error, reason}
+      end)
+
+    Enum.zip(items, results)
+    |> Map.new()
+  end
+
+  @doc """
+  This function is depreacted in favour of `async_safely/3`
+
+  This used to be used by both the `Dataloader` module for running multiple
+  source queries concurrently, and the `KV` and `Ecto` sources to actually run
+  separate batch fetches (e.g. for `Posts` and `Users` at the same time).
+
+  The problem was that the behaviour between the sources and the parent
+  `Dataloader` was actually slightly different. The `Dataloader`-specific
+  behaviour has been pulled out into `run_tasks/4`
+
+  Please use `async_safely` instead of this for fetching data from sources
+  """
+  @spec pmap(list(), fun(), keyword()) :: map()
+  def pmap(items, fun, opts \\ []) do
+    async_safely(__MODULE__, :run_tasks, [items, fun, opts])
   end
 end
