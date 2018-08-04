@@ -2,7 +2,7 @@
 
 Dataloader provides an easy way efficiently load data in batches. It's inspired
 by https://github.com/facebook/dataloader, although it makes some small API
-changes to better suite Elixir use cases.
+changes to better suit Elixir use cases.
 
 ## Installation
 
