@@ -92,6 +92,61 @@ defmodule Dataloader.EctoTest do
     refute Dataloader.get(loader, Test, {:one, Post}, title: "bar")
   end
 
+  # The thing I originally wanted to do. Take a foreign key id coming from a GQL query that
+  # is a string and look up the rows with that id
+  test "Look up from foreign key", %{loader: loader} do
+    user = %User{username: "Ben"} |> Repo.insert!()
+
+    rows = [
+      %{user_id: user.id, title: "foo"},
+      %{user_id: user.id, title: "bar", deleted_at: DateTime.utc_now()}
+    ]
+
+    {_, [%{id: post_id} | _]} = Repo.insert_all(Post, rows, returning: [:id])
+
+    user_id_string = Integer.to_string(post_id)
+
+    loader =
+      loader
+      |> Dataloader.load(Test, {:one, Post}, user_id: user_id_string)
+      |> Dataloader.run()
+
+    assert_receive(:querying)
+
+    assert Dataloader.get(loader, Test, {:many, Post}, user_id: user_id_string)
+  end
+
+  # This shows that it's not actually related to the lookup by column - even primary key
+  # doesn't work
+  test "loading directly with string for id column works", %{loader: loader} do
+    user = %User{username: "Ben"} |> Repo.insert!()
+
+    user_id_string = Integer.to_string(user.id)
+
+    loader =
+      loader
+      |> Dataloader.load(Test, User, user_id_string)
+      |> Dataloader.run()
+
+    assert_receive(:querying)
+
+    assert Repo.get(User, user_id_string) == Dataloader.get(loader, Test, User, user_id_string)
+  end
+
+  # Same test as above but with numbers does work
+  test "loading directly with number for id column works", %{loader: loader} do
+    user = %User{username: "Ben"} |> Repo.insert!()
+
+    loader =
+      loader
+      |> Dataloader.load(Test, User, user.id)
+      |> Dataloader.run()
+
+    assert_receive(:querying)
+
+    assert Repo.get(User, user.id) == Dataloader.get(loader, Test, User, user.id)
+  end
+
   test "successive loads query only for new info", %{loader: loader} do
     [user1, user2] =
       [
