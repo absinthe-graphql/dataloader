@@ -1,11 +1,7 @@
 # Changelog
 
-## v1.0.3 - Unreleased
+## v1.1.0 - Unreleased
 
-- Enhancement: Improved caching characteristics on the KV source
-- Enhancement: More flexible cardinality mapping for Ecto source
-- Enhancement: Uniq the batched KV and Ecto values
-- Bug Fix: When using the Ecto source it properly coerces all inputs for known fields.
 - Enhancement: Improved error handling when sources fail to load
   This provides two additional configurable methods of error handling:
 
@@ -18,6 +14,10 @@
   `:ok`/`:error` tuples instead of just the value. This frees up the
   caller to handle errors any way they see fit
 
+- Enhancement: Improved caching characteristics on the KV source
+- Enhancement: More flexible cardinality mapping for Ecto source
+- Enhancement: Uniq the batched KV and Ecto values
+- Bug Fix: When using the Ecto source it properly coerces all inputs for known fields.
 ## v1.0.2 - 2018-04-10
 
 - Enhancement: Custom batch functions for Ecto
