@@ -5,6 +5,17 @@
 - Enhancement: Improved caching characteristics on the KV source
 - Enhancement: More flexible cardinality mapping for Ecto source
 - Enhancement: Uniq the batched KV and Ecto values
+- Enhancement: Improved error handling when sources fail to load
+  This provides two additional configurable methods of error handling:
+
+  * `:return_nil_on_error` - This is the previous default. Errors are logged,
+  and values return `nil`.
+  * `:raise_on_error` - this will raise a `Dataloader.GetError` when one
+  of the `get` methods are called. This is now the default behaviour
+  for handling errors
+  * `:tuples` - this changes the `get/4`/`get_many/4` methods to return
+  `:ok`/`:error` tuples instead of just the value. This frees up the
+  caller to handle errors any way they see fit
 
 ## v1.0.2 - 2018-04-10
 

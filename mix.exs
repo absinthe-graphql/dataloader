@@ -30,7 +30,7 @@ defmodule Dataloader.Mixfile do
       maintainers: ["Ben Wilson"],
       licenses: ["MIT"],
       links: %{
-        "Changelog": "https://github.com/absinthe-graphql/dataloader/blob/master/CHANGELOG.md", 
+        "Changelog": "https://github.com/absinthe-graphql/dataloader/blob/master/CHANGELOG.md",
         "GitHub": "https://github.com/absinthe-graphql/dataloader"
       }
     ]
