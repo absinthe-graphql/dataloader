@@ -5,6 +5,7 @@
 - Enhancement: Improved caching characteristics on the KV source
 - Enhancement: More flexible cardinality mapping for Ecto source
 - Enhancement: Uniq the batched KV and Ecto values
+- Bug Fix: When using the Ecto source it properly coerces all inputs for known fields.
 - Enhancement: Improved error handling when sources fail to load
   This provides two additional configurable methods of error handling:
 
