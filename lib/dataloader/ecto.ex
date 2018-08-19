@@ -203,13 +203,6 @@ if Code.ensure_loaded?(Ecto) do
       results = load_rows(col, inputs, query, repo, repo_opts)
       grouped_results = group_results(results, col)
 
-      # This is slightly problematic because you can query by a column
-      # that is an integer providing a string (e.g. if it's an id coming from
-      # the user directly). The query part will get it from the database.
-      # Then this part will fail to do the mapping
-      #
-      # It would be great to figure out what type the column is in the database
-      # and coerce back to the type given so we can match.
       for value <- inputs do
         grouped_results
         |> Map.get(value, [])
@@ -438,9 +431,19 @@ if Code.ensure_loaded?(Ecto) do
 
         cardinality_mapper = cardinality_mapper(cardinality, queryable)
 
+        coerced_inputs =
+          if type = queryable.__schema__(:type, col) do
+            for input <- inputs do
+              {:ok, input} = Ecto.Type.cast(type, input)
+              input
+            end
+          else
+            inputs
+          end
+
         results =
           queryable
-          |> source.run_batch.(query, col, inputs, repo_opts)
+          |> source.run_batch.(query, col, coerced_inputs, repo_opts)
           |> Enum.map(cardinality_mapper)
 
         results =

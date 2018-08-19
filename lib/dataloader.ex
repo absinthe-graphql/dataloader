@@ -174,7 +174,7 @@ defmodule Dataloader do
     |> do_get(options[:get_policy])
   end
 
-  @spec get_many(t, source_name, any, any) :: [any] | no_return()
+  @spec get_many(t, source_name, any, any) :: [any] | {:ok, [any]} | no_return()
   def get_many(loader = %Dataloader{options: options}, source, batch_key, item_keys)
       when is_list(item_keys) do
     source = get_source(loader, source)
