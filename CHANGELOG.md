@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.1.0 - 2018-08-19
+## v1.0.3 - 2018-08-19
 
 - Enhancement: Improved error handling when sources fail to load
   This provides two additional configurable methods of error handling:
