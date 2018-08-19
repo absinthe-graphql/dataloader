@@ -12,7 +12,13 @@ defmodule Dataloader.Mixfile do
       elixirc_paths: elixirc_paths(Mix.env()),
       package: package(),
       aliases: aliases(),
-      docs: [source_ref: "v#{@version}", main: "Dataloader"],
+      docs: [
+        main: "Dataloader",
+        source_ref: "v#{@version}",
+        extras: [
+          "CHANGELOG.md"
+        ]
+      ],
       deps: deps()
     ]
   end
