@@ -431,14 +431,15 @@ if Code.ensure_loaded?(Ecto) do
 
         cardinality_mapper = cardinality_mapper(cardinality, queryable)
 
-        coerced_inputs = if type = queryable.__schema__(:type, col) do
-          for input <- inputs do
-            {:ok, input} = Ecto.Type.cast(type, input)
-            input
+        coerced_inputs =
+          if type = queryable.__schema__(:type, col) do
+            for input <- inputs do
+              {:ok, input} = Ecto.Type.cast(type, input)
+              input
+            end
+          else
+            inputs
           end
-        else
-          inputs
-        end
 
         results =
           queryable
