@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.1.0 - Unreleased
+## v1.1.0 - 2018-08-19
 
 - Enhancement: Improved error handling when sources fail to load
   This provides two additional configurable methods of error handling:
@@ -18,6 +18,7 @@
 - Enhancement: More flexible cardinality mapping for Ecto source
 - Enhancement: Uniq the batched KV and Ecto values
 - Bug Fix: When using the Ecto source it properly coerces all inputs for known fields.
+
 ## v1.0.2 - 2018-04-10
 
 - Enhancement: Custom batch functions for Ecto
