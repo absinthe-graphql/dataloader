@@ -230,11 +230,6 @@ defmodule Dataloader do
   """
   @spec async_safely(module(), atom(), list()) :: any()
   def async_safely(mod, fun, args \\ []) do
-    # This supervisor exists to help ensure that the spawned tasks will die as
-    # promptly as possible if the current process is killed.
-    {:ok, task_supervisor} = Task.Supervisor.start_link([])
-    args = [task_supervisor | args]
-
     # The intermediary task is spawned here so that the `:trap_exit` flag does
     # not lead to rogue behaviour within the current process. This could happen
     # if the current process is linked to something, and then that something
@@ -276,16 +271,16 @@ defmodule Dataloader do
         3 => {:error, :timeout}
       }
   """
-  @spec run_tasks(Task.Supervisor.t(), list(), fun(), keyword()) :: map()
-  def run_tasks(task_supervisor, items, fun, opts \\ []) do
+  @spec run_tasks(list(), fun(), keyword()) :: map()
+  def run_tasks(items, fun, opts \\ []) do
     task_opts = [
       timeout: opts[:timeout] || @default_timeout,
       on_timeout: :kill_task
     ]
 
     results =
-      task_supervisor
-      |> Task.Supervisor.async_stream(items, fun, task_opts)
+      items
+      |> Task.async_stream(fun, task_opts)
       |> Enum.map(fn
         {:ok, result} -> {:ok, result}
         {:exit, reason} -> {:error, reason}
