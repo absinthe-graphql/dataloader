@@ -253,8 +253,7 @@ defmodule Dataloader do
   This helper function will call `fun` on all `items` asynchronously, returning
   a map of `:ok`/`:error` tuples, keyed off the `items`. For example:
 
-      iex> {:ok, task_supervisor} = Task.Supervisor.start_link([])
-      ...> Dataloader.run_tasks(task_supervisor, [1,2,3], fn x -> x * x end, [])
+      iex> Dataloader.run_tasks([1,2,3], fn x -> x * x end, [])
       %{
         1 => {:ok, 1},
         2 => {:ok, 4},
@@ -263,8 +262,7 @@ defmodule Dataloader do
 
   Similarly, for errors:
 
-      iex> {:ok, task_supervisor} = Task.Supervisor.start_link([])
-      ...> Dataloader.run_tasks(task_supervisor, [1,2,3], fn _x -> Process.sleep(5) end, [timeout: 1])
+      iex> Dataloader.run_tasks([1,2,3], fn _x -> Process.sleep(5) end, [timeout: 1])
       %{
         1 => {:error, :timeout},
         2 => {:error, :timeout},
