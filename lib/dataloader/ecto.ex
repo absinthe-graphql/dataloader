@@ -400,15 +400,15 @@ if Code.ensure_loaded?(Ecto) do
         {key, default_params}
       end
 
-      def run_batches(task_supervisor, source) do
+      def run_batches(source) do
         options = [
           timeout: source.options[:timeout] || Dataloader.default_timeout(),
           on_timeout: :kill_task
         ]
 
         results =
-          task_supervisor
-          |> Task.Supervisor.async_stream(source.batches, &run_batch(&1, source), options)
+          source.batches
+          |> Task.async_stream(&run_batch(&1, source), options)
           |> Enum.map(fn
             {:ok, {_key, result}} -> {:ok, result}
             {:exit, reason} -> {:error, reason}
