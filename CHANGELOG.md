@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.4 - 2018-09-14
+
+- Bug Fix: Poor supervisor structure has been improved, which fixes large memory
+  usage issues
+
 ## v1.0.3 - 2018-08-19
 
 - Enhancement: Improved error handling when sources fail to load
