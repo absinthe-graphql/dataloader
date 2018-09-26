@@ -100,6 +100,11 @@ defmodule Dataloader do
 
   @default_get_policy :raise_on_error
 
+  @doc """
+  Create a new Dataloader instance.
+
+  See moduledoc for available options
+  """
   @spec new([option]) :: t
   def new(opts \\ []) do
     opts =
