@@ -12,6 +12,7 @@ defmodule Dataloader.Mixfile do
       elixirc_paths: elixirc_paths(Mix.env()),
       package: package(),
       aliases: aliases(),
+      source_url: "https://github.com/absinthe-graphql/dataloader",
       docs: [
         main: "Dataloader",
         source_ref: "v#{@version}",
