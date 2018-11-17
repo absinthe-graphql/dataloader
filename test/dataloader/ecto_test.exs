@@ -1,7 +1,7 @@
 defmodule Dataloader.EctoTest do
   use ExUnit.Case, async: true
 
-  alias Dataloader.{User, Post, Like}
+  alias Dataloader.{User, Post, Like, Score, Leaderboard}
   import Ecto.Query
   alias Dataloader.TestRepo, as: Repo
 
@@ -289,6 +289,24 @@ defmodule Dataloader.EctoTest do
       |> Dataloader.get(Test, :liking_users, post1)
 
     assert length(loaded_posts) == 2
+  end
+
+  test "works with nested has many through", %{loader: loader} do
+    leaderboard = %Leaderboard{name: "Bestliked"} |> Repo.insert!()
+    user = %User{username: "Ben Wilson", leaderboard_id: leaderboard.id} |> Repo.insert!()
+    post1 = %Post{user_id: user.id} |> Repo.insert!()
+    score = %Score{post_id: post1.id, leaderboard_id: leaderboard.id} |> Repo.insert!()
+
+    loader =
+      loader
+      |> Dataloader.load(Test, :awarded_posts, user)
+      |> Dataloader.run()
+
+    loaded_posts =
+      loader
+      |> Dataloader.get(Test, :awarded_posts, user)
+
+    assert length(loaded_posts) == 1
   end
 
   test "preloads aren't used", %{loader: loader} do

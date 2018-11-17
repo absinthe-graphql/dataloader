@@ -162,7 +162,7 @@ if Code.ensure_loaded?(Ecto) do
     @type batch_fun :: (Ecto.Queryable.t(), Ecto.Query.t(), [any], Keyword.t() -> [any])
     @type opt ::
             {:query, query_fun}
-            | {:default_params, Map.t}
+            | {:default_params, Map.t()}
             | {:repo_opts, Keyword.t()}
             | {:timeout, pos_integer}
             | {:run_batch, batch_fun()}
@@ -327,6 +327,9 @@ if Code.ensure_loaded?(Ecto) do
         case schema.__schema__(:association, field) do
           %{queryable: queryable} ->
             chase_down_queryable(fields, queryable)
+
+          %Ecto.Association.HasThrough{through: through} ->
+            chase_down_queryable(through, schema)
         end
       end
 
