@@ -294,8 +294,9 @@ defmodule Dataloader.EctoTest do
   test "works with nested has many through", %{loader: loader} do
     leaderboard = %Leaderboard{name: "Bestliked"} |> Repo.insert!()
     user = %User{username: "Ben Wilson", leaderboard_id: leaderboard.id} |> Repo.insert!()
-    post1 = %Post{user_id: user.id} |> Repo.insert!()
-    score = %Score{post_id: post1.id, leaderboard_id: leaderboard.id} |> Repo.insert!()
+
+    post = %Post{user_id: user.id} |> Repo.insert!()
+    _score = %Score{post_id: post.id, leaderboard_id: leaderboard.id} |> Repo.insert!()
 
     loader =
       loader
