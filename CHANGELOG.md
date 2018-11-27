@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.5 - Unreleased
+
+- Bug Fix: Fix dialyzer spec for run_batch function
+
 ## v1.0.4 - 2018-09-14
 
 - Bug Fix: Poor supervisor structure has been improved, which fixes large memory
