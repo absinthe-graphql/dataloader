@@ -47,8 +47,13 @@ defmodule Dataloader.Mixfile do
     ]
   end
 
+  # TODO: After Elixir 1.8, optional dependencies will be automatically
+  # included in `extra_applications`. So, it will be safe to remove this
+  # section.
+  #
+  # See: https://github.com/elixir-lang/elixir/pull/8263
   defp test_apps(:test) do
-    [:ecto, :postgrex]
+    [:ecto_sql, :postgrex]
   end
 
   defp test_apps(_), do: []
@@ -56,8 +61,8 @@ defmodule Dataloader.Mixfile do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ecto, ">= 0.0.0", optional: true},
-      {:postgrex, ">= 0.0.0", only: :test},
+      {:ecto_sql, "~> 3.0", optional: true},
+      {:postgrex, "~> 0.14", only: :test},
       {:dialyxir, "~> 0.5", only: :dev},
       {:ex_doc, ">= 0.0.0", only: [:dev]}
       # {:dep_from_hexpm, "~> 0.3.0"},
