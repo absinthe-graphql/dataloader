@@ -326,7 +326,11 @@ if Code.ensure_loaded?(Ecto) do
       defp chase_down_queryable([field | fields], schema) do
         case schema.__schema__(:association, field) do
           %{queryable: queryable} ->
-            chase_down_queryable(fields, queryable)
+           chase_down_queryable(fields, queryable)
+
+          %Ecto.Association.HasThrough{through: [through_field | through_fields]} ->
+            [through_field | through_fields ++ fields]
+            |> chase_down_queryable(schema)
         end
       end
 
