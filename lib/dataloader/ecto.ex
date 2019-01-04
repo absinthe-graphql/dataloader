@@ -134,6 +134,84 @@ if Code.ensure_loaded?(Ecto) do
     that we are only able to lookup data in organizations that the user actually
     has a membership in. Additional options you specify IE `{Organization, %{order: :asc}}`
     are merged into the default.
+
+    ## Custom batch queries
+
+    There are cases where you want to run the batch function yourself. To do this
+    we can add a custom `run_batch/5` callback to our source. For example, we want
+    to get the post count for a set of users.
+
+    First we add a custom `run_batch/5` function.
+
+    ```
+    def run_batch(_, query, :post_count, users, repo_opts) do
+      user_ids = Enum.map(users, & &1.id)
+      default_count = 0
+
+      result =
+        query
+        |> where([p], p.user_id in ^user_ids)
+        |> group_by([p], p.user_id)
+        |> select([p], {p.user_id, count("*")})
+        |> Repo.all(repo_opts)
+        |> Map.new()
+
+      for %{id: id} <- users do
+        [Map.get(result, id, default_count)]
+      end
+    end
+
+    # Fallback to original run_batch
+    def run_batch(queryable, query, col, inputs, repo_opts) do
+      Dataloader.Ecto.run_batch(Repo, queryable, query, col, inputs, repo_opts)
+    end
+    ```
+    This function is suplied with a list of users, does a query and will return
+    the post count for each of user. If the user id is not found in the resultset,
+    because the user has no posts, we return a post count of 0.
+
+    Now we need to call `run_batch/5` from dataloader. First we add a few posts
+    to the database.
+
+    After that, the custom `run_batch/5` function is provided to the Dataloader
+    source. Now, we can load the post count for several users. When the dataloader
+    runs it will call the custom `run_batch/5` and we can retrieve the posts counts
+    for each individual user.
+
+    ```
+    [user1, user2] = [%User{id: 1}, %User{id: 2}]
+
+    rows = [
+      %{user_id: user1.id, title: "foo"},
+      %{user_id: user1.id, title: "baz"}
+    ]
+
+    _ = Repo.insert_all(Post, rows)
+
+    source =
+      Dataloader.Ecto.new(
+        Repo,
+        run_batch: &run_batch/5
+      )
+
+    loader =
+      Dataloader.new()
+      |> Dataloader.add_source(Posts, source)
+
+    loader =
+      loader
+      |> Dataloader.load(Posts, {:one, Post}, post_count: user1)
+      |> Dataloader.load(Posts, {:one, Post}, post_count: user2)
+      |> Dataloader.run()
+
+    # Returns 2
+    Dataloader.get(loader, Posts, {:one, Post}, post_count: user1)
+    # Returns 0
+    Dataloader.get(loader, Posts, {:one, Post}, post_count: user2)
+
+    ```
+
+
     """
 
     defstruct [
