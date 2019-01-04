@@ -162,7 +162,7 @@ if Code.ensure_loaded?(Ecto) do
     @type batch_fun :: (Ecto.Queryable.t(), Ecto.Query.t(), [any], Keyword.t() -> [any])
     @type opt ::
             {:query, query_fun}
-            | {:default_params, Map.t}
+            | {:default_params, Map.t()}
             | {:repo_opts, Keyword.t()}
             | {:timeout, pos_integer}
             | {:run_batch, batch_fun()}
@@ -242,9 +242,10 @@ if Code.ensure_loaded?(Ecto) do
       end
 
       def fetch(source, batch_key, item) do
-        normalized_batch_key = normalize_key(batch_key, source.default_params)
-
-        {batch_key, item_key, _item} = get_keys(normalized_batch_key, item)
+        {batch_key, item_key, _item} =
+          batch_key
+          |> normalize_key(source.default_params)
+          |> get_keys(item)
 
         with {:ok, batch} <- Map.fetch(source.results, batch_key) do
           fetch_item_from_batch(batch, item_key)
@@ -335,6 +336,7 @@ if Code.ensure_loaded?(Ecto) do
       end
 
       defp get_keys({assoc_field, opts}, %schema{} = record) when is_atom(assoc_field) do
+        validate_queryable(schema)
         primary_keys = schema.__schema__(:primary_key)
         id = Enum.map(primary_keys, &Map.get(record, &1))
 
@@ -344,11 +346,14 @@ if Code.ensure_loaded?(Ecto) do
       end
 
       defp get_keys({{cardinality, queryable}, opts}, value) when is_atom(queryable) do
+        validate_queryable(queryable)
         {_, col, value} = normalize_value(queryable, value)
         {{:queryable, self(), queryable, cardinality, col, opts}, value, value}
       end
 
       defp get_keys({queryable, opts}, value) when is_atom(queryable) do
+        validate_queryable(queryable)
+
         case normalize_value(queryable, value) do
           {:primary, col, value} ->
             {{:queryable, self(), queryable, :one, col, opts}, value, value}
@@ -365,6 +370,20 @@ if Code.ensure_loaded?(Ecto) do
 
         The batch key must either be a schema module, or an association name.
         """
+      end
+
+      defp validate_queryable(queryable) do
+        unless {:__schema__, 1} in queryable.__info__(:functions) do
+          raise "The given module - #{queryable} - is not an Ecto schema."
+        end
+      rescue
+        _ in UndefinedFunctionError ->
+          raise Dataloader.GetError, """
+            The given atom - #{inspect(queryable)} - is not a module.
+
+            This can happen if you intend to pass an Ecto struct in your call to
+            `dataloader/4` but pass something other than a struct.
+          """
       end
 
       defp normalize_value(queryable, [{col, value}]) do

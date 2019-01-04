@@ -358,6 +358,16 @@ defmodule Dataloader.EctoTest do
     end
   end
 
+  test "when the parent is not a struct it raises an error", %{loader: loader} do
+    assert_raise Dataloader.GetError, ~r/:posts.*Ecto struct/s, fn ->
+      {:ok, user} = Repo.insert(%User{username: "Devon Estes"})
+
+      loader
+      |> Dataloader.load(Test, :posts, Map.from_struct(user))
+      |> Dataloader.run()
+    end
+  end
+
   test "when dataloader times out it raises an error" do
     user =
       %User{username: "Ben Wilson"}
