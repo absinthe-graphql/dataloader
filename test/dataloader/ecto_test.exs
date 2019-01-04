@@ -73,7 +73,7 @@ defmodule Dataloader.EctoTest do
 
     rows = [
       %{user_id: user.id, title: "foo"},
-      %{user_id: user.id, title: "bar", deleted_at: DateTime.utc_now()}
+      %{user_id: user.id, title: "bar", deleted_at: DateTime.truncate(DateTime.utc_now(), :second)}
     ]
 
     {_, [%{id: post_id} | _]} = Repo.insert_all(Post, rows, returning: [:id])
