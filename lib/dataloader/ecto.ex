@@ -237,11 +237,12 @@ if Code.ensure_loaded?(Ecto) do
           }
 
     @type query_fun :: (Ecto.Queryable.t(), any -> Ecto.Queryable.t())
-    @type batch_fun :: (Ecto.Queryable.t(), Ecto.Query.t(), [any], Keyword.t() -> [any])
+    @type repo_opts :: Keyword.t()
+    @type batch_fun :: (Ecto.Queryable.t(), Ecto.Query.t(), any, [any], repo_opts -> [any])
     @type opt ::
             {:query, query_fun}
             | {:default_params, Map.t()}
-            | {:repo_opts, Keyword.t()}
+            | {:repo_opts, repo_opts}
             | {:timeout, pos_integer}
             | {:run_batch, batch_fun()}
 
