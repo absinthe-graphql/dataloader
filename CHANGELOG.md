@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.0.5 - Unreleased
+## v1.0.5 - 2019-02-03
 
 - Bug Fix: Fix dialyzer spec for run_batch function
 
