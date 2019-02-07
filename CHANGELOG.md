@@ -1,8 +1,15 @@
 # Changelog
 
+## v1.0.6 - Unreleased
+
+- Bug Fix: Depend on `ecto` instead of `ecto_sql`. Fixes Ecto 2.x support (#67)
+
 ## v1.0.5 - 2019-02-03
 
 - Bug Fix: Fix dialyzer spec for run_batch function
+
+**Breaking change:** Dependency changed from `ecto` to `ecto_sql` which
+unintentionally breaks `Dataloader.Ecto` on Ecto 2.x projects (#67).
 
 ## v1.0.4 - 2018-09-14
 
