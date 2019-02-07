@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.0.6 - Unreleased
+## v1.0.6 - 2019-02-06
 
 - Bug Fix: Depend on `ecto` instead of `ecto_sql`. Fixes Ecto 2.x support
   ([#67](https://github.com/absinthe-graphql/dataloader/issues/67))
