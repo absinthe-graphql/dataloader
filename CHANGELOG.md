@@ -2,14 +2,21 @@
 
 ## v1.0.6 - Unreleased
 
-- Bug Fix: Depend on `ecto` instead of `ecto_sql`. Fixes Ecto 2.x support (#67)
+- Bug Fix: Depend on `ecto` instead of `ecto_sql`. Fixes Ecto 2.x support
+  ([#67](https://github.com/absinthe-graphql/dataloader/issues/67))
 
 ## v1.0.5 - 2019-02-03
 
+- Improvement: Ecto 3 support (which is just improving the tests)
+- Improvement: Better error messages if you pass a non-ecto schema to
+  `Dataloader.load/4` or `Datalaoder.get/4`
 - Bug Fix: Fix dialyzer spec for run_batch function
+- Bug Fix: Fix loading of nested through associations
+  ([#65](https://github.com/absinthe-graphql/dataloader/pull/65))
 
 **Breaking change:** Dependency changed from `ecto` to `ecto_sql` which
-unintentionally breaks `Dataloader.Ecto` on Ecto 2.x projects (#67).
+unintentionally breaks `Dataloader.Ecto` on Ecto 2.x projects
+([#67](https://github.com/absinthe-graphql/dataloader/issues/67)).
 
 ## v1.0.4 - 2018-09-14
 
