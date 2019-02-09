@@ -1,4 +1,5 @@
 defmodule Dataloader.KV do
+  require Logger
   @moduledoc """
   Simple KV based Dataloader source.
 
@@ -68,6 +69,10 @@ defmodule Dataloader.KV do
       %{source | results: results}
     end
 
+    def load(source, _, nil) do 
+      source
+    end
+
     def load(source, batch_key, id) do
       case fetch(source, batch_key, id) do
         {:error, _message} ->
@@ -78,6 +83,40 @@ defmodule Dataloader.KV do
         _ ->
           source
       end
+    end
+
+    def load_many(source, _, ids) when ids in [nil, []] do 
+      source
+    end
+
+    def load_many(source, batch_key, ids) do
+      with {:ok, batch} <- Map.fetch(source.results, batch_key) do
+        existing =
+          batch
+          |> Map.take(ids)
+          |> Map.keys()
+          |> MapSet.new()
+
+        idms = MapSet.new(ids)
+        to_load = MapSet.difference(idms, existing)
+        if MapSet.size(to_load) == 0 do
+          source
+        else
+          update_in(source.batches, fn batches ->
+            Map.update(batches, batch_key, to_load, &MapSet.union(&1, to_load))
+          end)
+        end
+      else
+        _ ->
+          update_in(source.batches, fn batches ->
+            ms = MapSet.new(ids)
+            Map.update(batches, batch_key, ms, &MapSet.union(&1, ms))
+          end)
+      end
+    end
+
+    def fetch_many(source, batch_key, ids) do
+      do_fetch_many(source, batch_key, ids)
     end
 
     def fetch(source, batch_key, id) do
@@ -97,7 +136,9 @@ defmodule Dataloader.KV do
         {batch_key, source.load_function.(batch_key, ids)}
       end
 
-      results = Dataloader.async_safely(Dataloader, :run_tasks, [source.batches, fun])
+      task_opts = Keyword.take(source.opts, [:timeout, :max_concurrency])
+
+      results = Dataloader.async_safely(Dataloader, :run_tasks, [source.batches, fun, task_opts])
 
       %{source | batches: %{}, results: merge_results(source.results, results)}
     end
@@ -108,6 +149,25 @@ defmodule Dataloader.KV do
 
     def timeout(%{opts: opts}) do
       opts[:timeout]
+    end
+
+    defp do_fetch_many(_, _, []), do: {:ok, []}
+    defp do_fetch_many(source, batch_key, ids) do
+      do_fetch_many(source, batch_key, ids, {:ok, []})
+    end
+
+    defp do_fetch_many(_, _, [], {:ok, results}), do: {:ok, Enum.reverse(results)}
+    defp do_fetch_many(_, _, _, {:error, _} = err) do
+      err
+    end
+
+    defp do_fetch_many(source, batch_key, [id | rest], {:ok, results}) do
+      case fetch(source, batch_key, id) do
+        {:error, _} = err -> 
+          err
+        {:ok, item} -> 
+          do_fetch_many(source, batch_key, rest, {:ok, [item | results]})
+      end
     end
   end
 end

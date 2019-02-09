@@ -84,7 +84,6 @@ defmodule Dataloader do
   defstruct sources: %{},
             options: []
 
-  require Logger
   alias Dataloader.Source
 
   @type t :: %__MODULE__{
@@ -125,18 +124,19 @@ defmodule Dataloader do
     source =
       loader
       |> get_source(source_name)
-      |> do_load(batch_key, vals)
+      |> Source.load_many(batch_key, vals)
 
     put_in(loader.sources[source_name], source)
   end
 
   @spec load(t, source_name, any, any) :: t | no_return()
   def load(loader, source_name, batch_key, val) do
-    load_many(loader, source_name, batch_key, [val])
-  end
-
-  defp do_load(source, batch_key, vals) do
-    Enum.reduce(vals, source, &Source.load(&2, batch_key, &1))
+    source =
+      loader
+      |> get_source(source_name)
+      |> Source.load(batch_key, val)
+    
+    put_in(loader.sources[source_name], source)
   end
 
   @spec run(t) :: t | no_return
@@ -182,13 +182,12 @@ defmodule Dataloader do
   @spec get_many(t, source_name, any, any) :: [any] | {:ok, [any]} | no_return()
   def get_many(loader = %Dataloader{options: options}, source, batch_key, item_keys)
       when is_list(item_keys) do
-    source = get_source(loader, source)
 
-    for key <- item_keys do
-      source
-      |> Source.fetch(batch_key, key)
+    result =
+      loader
+      |> get_source(source)
+      |> Source.fetch_many(batch_key, item_keys)
       |> do_get(options[:get_policy])
-    end
   end
 
   defp do_get({:ok, val}, :raise_on_error), do: val
@@ -276,10 +275,11 @@ defmodule Dataloader do
   """
   @spec run_tasks(list(), fun(), keyword()) :: map()
   def run_tasks(items, fun, opts \\ []) do
-    task_opts = [
-      timeout: opts[:timeout] || @default_timeout,
-      on_timeout: :kill_task
-    ]
+    task_opts = 
+      opts
+      |> Keyword.take([:timeout, :max_concurrency])
+      |> Keyword.put_new(:timeout, @default_timeout)
+      |> Keyword.put(:on_timeout, :kill_task)
 
     results =
       items

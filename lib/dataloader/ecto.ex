@@ -320,6 +320,10 @@ if Code.ensure_loaded?(Ecto) do
         %{source | results: results, batches: %{}}
       end
 
+      def fetch_many(source, batch_key, items) do
+        do_fetch_many(source, batch_key, items)
+      end
+
       def fetch(source, batch_key, item) do
         {batch_key, item_key, _item} =
           batch_key
@@ -377,6 +381,10 @@ if Code.ensure_loaded?(Ecto) do
           _ ->
             source
         end
+      end
+
+      def load_many(source, batch, items) do
+        Enum.reduce(items, source, &__MODULE__.load(&2, batch, &1))
       end
 
       def pending_batches?(%{batches: batches}) do
@@ -596,6 +604,25 @@ if Code.ensure_loaded?(Ecto) do
 
           other ->
             other
+        end
+      end
+
+      defp do_fetch_many(_, _, []), do: {:ok, []}
+      defp do_fetch_many(source, batch_key, ids) do
+        do_fetch_many(source, batch_key, ids, {:ok, []})
+      end
+
+      defp do_fetch_many(_, _, [], {:ok, results}), do: {:ok, Enum.reverse(results)}
+      defp do_fetch_many(_, _, _, {:error, _} = err) do
+        err
+      end
+
+      defp do_fetch_many(source, batch_key, [id | rest], {:ok, results}) do
+        case fetch(source, batch_key, id) do
+          {:error, _} = err -> 
+            err
+          {:ok, item} -> 
+            do_fetch_many(source, batch_key, rest, {:ok, [item | results]})
         end
       end
     end

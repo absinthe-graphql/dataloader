@@ -9,6 +9,13 @@ defprotocol Dataloader.Source do
   def load(source, batch_key, item_key)
 
   @doc """
+  Enqueue many items to be loaded under a given batch
+  Do not queue items that are already loaded
+  """
+  @spec load_many(t, batch_key, [item_key]) :: t
+  def load_many(source, batch_key, item_keys)
+
+  @doc """
   Run any batches queued up for this source.
   """
   @spec run(t) :: t
@@ -19,6 +26,9 @@ defprotocol Dataloader.Source do
   """
   @spec fetch(t, batch_key, item_key) :: {:ok, term} | {:error, term}
   def fetch(source, batch_key, item_key)
+
+  @spec fetch_many(t, batch_key, [item_key]) :: {:ok, [term]} | {:error, term}
+  def fetch_many(source, batch_key, item_keys)
 
   @doc """
   Determine if there are any batches that have not yet been run.
