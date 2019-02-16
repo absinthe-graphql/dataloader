@@ -406,7 +406,7 @@ if Code.ensure_loaded?(Ecto) do
       defp chase_down_queryable([field | fields], schema) do
         case schema.__schema__(:association, field) do
           %{queryable: queryable} ->
-           chase_down_queryable(fields, queryable)
+            chase_down_queryable(fields, queryable)
 
           %Ecto.Association.HasThrough{through: [through_field | through_fields]} ->
             [through_field | through_fields ++ fields]
@@ -536,23 +536,26 @@ if Code.ensure_loaded?(Ecto) do
 
         coerced_inputs =
           if type = queryable.__schema__(:type, col) do
-            for input <- inputs do
-              {:ok, input} = Ecto.Type.cast(type, input)
-              input
-            end
+            cast_inputs(type, inputs)
           else
-            inputs
+            {:ok, inputs}
           end
 
         results =
-          queryable
-          |> source.run_batch.(query, col, coerced_inputs, repo_opts)
-          |> Enum.map(cardinality_mapper)
+          case coerced_inputs do
+            {:ok, coerced_inputs} ->
+              results =
+                queryable
+                |> source.run_batch.(query, col, coerced_inputs, repo_opts)
+                |> Enum.map(cardinality_mapper)
 
-        results =
-          inputs
-          |> Enum.zip(results)
-          |> Map.new()
+              inputs
+              |> Enum.zip(results)
+              |> Map.new()
+
+            :error ->
+              %{}
+          end
 
         {key, results}
       end
@@ -574,6 +577,16 @@ if Code.ensure_loaded?(Ecto) do
           |> Enum.map(&Map.get(&1, field))
 
         {key, Map.new(Enum.zip(ids, results))}
+      end
+
+      defp cast_inputs(type, inputs, acc \\ [])
+
+      defp cast_inputs(_, [], acc), do: {:ok, Enum.reverse(acc)}
+
+      defp cast_inputs(type, [input | rest], acc) do
+        with {:ok, casted_input} <- Ecto.Type.cast(type, input) do
+          cast_inputs(type, rest, [casted_input | acc])
+        end
       end
 
       defp cardinality_mapper(:many, _) do

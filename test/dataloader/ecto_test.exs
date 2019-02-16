@@ -73,7 +73,11 @@ defmodule Dataloader.EctoTest do
 
     rows = [
       %{user_id: user.id, title: "foo"},
-      %{user_id: user.id, title: "bar", deleted_at: DateTime.truncate(DateTime.utc_now(), :second)}
+      %{
+        user_id: user.id,
+        title: "bar",
+        deleted_at: DateTime.truncate(DateTime.utc_now(), :second)
+      }
     ]
 
     {_, [%{id: post_id} | _]} = Repo.insert_all(Post, rows, returning: [:id])
@@ -309,10 +313,10 @@ defmodule Dataloader.EctoTest do
     loaded_posts =
       loader
       |> Dataloader.get(Test, :awarded_posts, user)
+
     loaded_likes =
       loader
       |> Dataloader.get(Test, :likes, user)
-
 
     assert length(loaded_posts) == 1
     assert length(loaded_likes) == 2
@@ -395,5 +399,20 @@ defmodule Dataloader.EctoTest do
     assert_raise Dataloader.GetError, ~r/:timeout/, fn ->
       Dataloader.get(loader, Timeout, User, user.id)
     end
+  end
+
+  test "type casting errors return no results" do
+    source = Dataloader.Ecto.new(Repo)
+
+    loader =
+      Dataloader.new(get_policy: :return_nil_on_error)
+      |> Dataloader.add_source(Test, source)
+
+    loader =
+      loader
+      |> Dataloader.load(Test, User, "foo")
+      |> Dataloader.run()
+
+    assert Dataloader.get(loader, Test, User, "foo") == nil
   end
 end
