@@ -82,9 +82,10 @@ defmodule Dataloader.KV do
 
     def fetch(source, batch_key, id) do
       with {:ok, batch} <- Map.fetch(source.results, batch_key) do
-        case Map.get(batch, id) do
-          {:error, reason} -> {:error, reason}
-          item -> {:ok, item}
+        case Map.fetch(batch, id) do
+          :error -> {:error, "Unable to find id #{inspect(id)}"}
+          {:ok, {:error, reason}} -> {:error, reason}
+          {:ok, item} -> {:ok, item}
         end
       else
         :error ->

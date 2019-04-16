@@ -60,6 +60,21 @@ defmodule Dataloader.KVTest do
     assert loader != round1_loader
   end
 
+  test "loading something not in the cache does change the loader", %{loader: loader} do
+    round1_loader =
+      loader
+      |> Dataloader.load(Test, :users, "ben")
+      |> Dataloader.run()
+
+    round2_loader =
+      round1_loader
+      |> Dataloader.load(Test, :users, "bruce")
+      |> Dataloader.run()
+
+    refute round2_loader == round1_loader
+    refute loader == round1_loader
+  end
+
   test "cache can be warmed", %{loader: loader} do
     loader = Dataloader.put(loader, Test, :users, "ben", @data[:users] |> List.first())
 
