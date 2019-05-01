@@ -357,7 +357,7 @@ if Code.ensure_loaded?(Ecto) do
             source.results,
             batch_key,
             {:ok, %{item_key => result}},
-            &Map.put(&1, item_key, result)
+            fn {:ok, map} -> {:ok, Map.put(map, item_key, result)} end
           )
 
         %{source | results: results}
