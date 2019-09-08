@@ -43,7 +43,7 @@ loader = Dataloader.run(loader)
 organizations = Dataloader.get_many(loader, :db, Organization, [1,4])
 ```
 
-This will do a single SQL query to get all organizations by ids 1,4, and 9. You
+This will do a single SQL query to get all organizations by ids 1, 4, and 9. You
 can load multiple batches from multiple sources, and then when `run/1` is called
 batch will be loaded concurrently.
 
