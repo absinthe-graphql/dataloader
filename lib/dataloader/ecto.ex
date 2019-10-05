@@ -26,7 +26,7 @@ if Code.ensure_loaded?(Ecto) do
     ```
 
     Querying for associations. Here we look up the `:users` association on all
-    the organizations, and the :organization for a single user.
+    the organizations, and the `:organization` for a single user.
 
     ```elixir
     loader =
