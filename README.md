@@ -50,7 +50,7 @@ batch will be loaded concurrently.
 Here we named the source `:db` within our dataloader. More commonly though if
 you're using Phoenix you'll want to name it after one of your contexts, and have
 a different source used for each context. This provides an easy way to enforce
-data access rules within each context. See the `DataLoader.Ecto` moduledocs for
+data access rules within each context. See the `Dataloader.Ecto` moduledocs for
 more details
 
 ## Sources

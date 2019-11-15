@@ -43,7 +43,7 @@ defmodule Dataloader do
   Here we named the source `:db` within our dataloader. More commonly though if
   you're using Phoenix you'll want to name it after one of your contexts, and
   have a different source used for each context. This provides an easy way to
-  enforce data access rules within each context. See the `DataLoader.Ecto`
+  enforce data access rules within each context. See the `Dataloader.Ecto`
   moduledocs for more details
 
   ## Options
@@ -230,7 +230,7 @@ defmodule Dataloader do
   **NOTE**: The provided `fun` must accept a `Task.Supervisor` as its first
   argument, as this function will prepend the relevant supervisor to `args`
 
-  See `run_tasks/4` for an example of a `fun` implementation, this will return
+  See `run_task/3` for an example of a `fun` implementation, this will return
   whatever that returns.
   """
   @spec async_safely(module(), atom(), list()) :: any()
@@ -304,7 +304,7 @@ defmodule Dataloader do
   `Dataloader` was actually slightly different. The `Dataloader`-specific
   behaviour has been pulled out into `run_tasks/4`
 
-  Please use `async_safely` instead of this for fetching data from sources
+  Please use `async_safely/3` instead of this for fetching data from sources
   """
   @spec pmap(list(), fun(), keyword()) :: map()
   def pmap(items, fun, opts \\ []) do

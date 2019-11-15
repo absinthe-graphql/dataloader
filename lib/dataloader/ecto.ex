@@ -52,12 +52,12 @@ if Code.ensure_loaded?(Ecto) do
     (`:many` or `:one`), which will decide whether to return a list or a single
     value (or nil). This is because the column may not be a key and there may be
     multiple matching records. Note also that even if we are returning `:many` values
-    here  from multiple matching records, this is still a call to `load/4` rather than
-    `load_many/4` because there is only one val specified.
+    here  from multiple matching records, this is still a call to `Dataloader.load/4`
+    rather than `Dataloader.load_many/4` because there is only one val specified.
 
     ## Filtering / Ordering
 
-    `Dataloader.new/2` can receive a 2 arity function that can be used to apply
+    `Dataloader.Ecto.new/2` can receive a 2 arity function that can be used to apply
     broad ordering and filtering rules, as well as handle parameters
 
     ```elixir
@@ -68,7 +68,7 @@ if Code.ensure_loaded?(Ecto) do
       |> Dataloader.add_source(Accounts, source)
     ```
 
-    When we call `load/4` we can pass in a tuple as the batch key with a keyword list
+    When we call `Dataloader.load/4` we can pass in a tuple as the batch key with a keyword list
     of parameters in addition to the queryable or assoc_field
 
     ```elixir
