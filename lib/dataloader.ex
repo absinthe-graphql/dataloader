@@ -120,7 +120,7 @@ defmodule Dataloader do
     %{loader | sources: sources}
   end
 
-  @spec load_many(t, source_name, any, [any]) :: t | no_return()
+  @spec load_many(t, source_name, any, [any]) :: t
   def load_many(loader, source_name, batch_key, vals) when is_list(vals) do
     source =
       loader
@@ -130,7 +130,7 @@ defmodule Dataloader do
     put_in(loader.sources[source_name], source)
   end
 
-  @spec load(t, source_name, any, any) :: t | no_return()
+  @spec load(t, source_name, any, any) :: t
   def load(loader, source_name, batch_key, val) do
     load_many(loader, source_name, batch_key, [val])
   end
@@ -139,7 +139,7 @@ defmodule Dataloader do
     Enum.reduce(vals, source, &Source.load(&2, batch_key, &1))
   end
 
-  @spec run(t) :: t | no_return
+  @spec run(t) :: t
   def run(dataloader) do
     if pending_batches?(dataloader) do
       fun = fn {name, source} -> {name, Source.run(source)} end
@@ -171,7 +171,7 @@ defmodule Dataloader do
     (max_source_timeout || @default_timeout) + :timer.seconds(1)
   end
 
-  @spec get(t, source_name, any, any) :: any | no_return()
+  @spec get(t, source_name, any, any) :: any
   def get(loader = %Dataloader{options: options}, source, batch_key, item_key) do
     loader
     |> get_source(source)
@@ -179,7 +179,7 @@ defmodule Dataloader do
     |> do_get(options[:get_policy])
   end
 
-  @spec get_many(t, source_name, any, any) :: [any] | {:ok, [any]} | no_return()
+  @spec get_many(t, source_name, any, any) :: [any] | {:ok, [any]}
   def get_many(loader = %Dataloader{options: options}, source, batch_key, item_keys)
       when is_list(item_keys) do
     source = get_source(loader, source)
