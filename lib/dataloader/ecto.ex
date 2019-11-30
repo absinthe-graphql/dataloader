@@ -364,35 +364,29 @@ if Code.ensure_loaded?(Ecto) do
       end
 
       def load(source, batch, item) do
-        case fetched?(source, batch, item) do
-          false ->
-            {batch_key, item_key, item} =
-              batch
-              |> normalize_key(source.default_params)
-              |> get_keys(item)
-
-            entry = {item_key, item}
-
-            update_in(source.batches, fn batches ->
-              Map.update(batches, batch_key, MapSet.new([entry]), &MapSet.put(&1, entry))
-            end)
-
-          true -> source
-        end
-      end
-
-      defp fetched?(source, batch_key, item) do
-        {batch_key, item_key, _item} =
-          batch_key
+        {batch_key, item_key, item} =
+          batch
           |> normalize_key(source.default_params)
           |> get_keys(item)
 
-        with {:ok, batch} <- Map.fetch(source.results, batch_key),
-        {:ok, _result} <- fetch_item_from_batch(batch, item_key) do
+        unless fetched?(source, batch_key, item_key) do
+          entry = {item_key, item}
+
+          update_in(source.batches, fn batches ->
+            Map.update(batches, batch_key, MapSet.new([entry]), &MapSet.put(&1, entry))
+          end)
+        else
+          source
+        end
+      end
+
+      defp fetched?(%{results: results}, batch_key, item_key) do
+        with {:ok, batch} <- Map.fetch(results, batch_key),
+             {:ok, _result} <- fetch_item_from_batch(batch, item_key) do
           true
         else
           _ ->
-          false
+            false
         end
       end
 
