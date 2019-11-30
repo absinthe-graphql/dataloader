@@ -369,19 +369,19 @@ if Code.ensure_loaded?(Ecto) do
           |> normalize_key(source.default_params)
           |> get_keys(item)
 
-        unless fetched?(source.results, batch_key, item_key) do
+        if fetched?(source.results, batch_key, item_key) do
+          source
+        else
           entry = {item_key, item}
 
           update_in(source.batches, fn batches ->
             Map.update(batches, batch_key, MapSet.new([entry]), &MapSet.put(&1, entry))
           end)
-        else
-          source
         end
       end
 
       defp fetched?(results, batch_key, item_key) do
-        case Map.fetch(results, batch_key)  do
+        case Map.fetch(results, batch_key) do
           :error -> false
           {:ok, {:error, _reason}} -> false
           {:ok, {:ok, batch}} -> Map.has_key?(batch, item_key)

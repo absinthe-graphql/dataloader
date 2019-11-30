@@ -69,12 +69,12 @@ defmodule Dataloader.KV do
     end
 
     def load(source, batch_key, id) do
-      unless fetched?(source.results, batch_key, id) do
-          update_in(source.batches, fn batches ->
-            Map.update(batches, batch_key, MapSet.new([id]), &MapSet.put(&1, id))
-          end)
-      else
+      if fetched?(source.results, batch_key, id) do
         source
+      else
+        update_in(source.batches, fn batches ->
+          Map.update(batches, batch_key, MapSet.new([id]), &MapSet.put(&1, id))
+        end)
       end
     end
 
