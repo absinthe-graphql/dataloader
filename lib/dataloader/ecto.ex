@@ -381,10 +381,9 @@ if Code.ensure_loaded?(Ecto) do
       end
 
       defp fetched?(results, batch_key, item_key) do
-        case Map.fetch(results, batch_key) do
-          :error -> false
-          {:ok, {:error, _reason}} -> false
-          {:ok, {:ok, batch}} -> Map.has_key?(batch, item_key)
+        case results do
+          %{^batch_key => {:ok, %{^item_key => _}}} -> true
+          _ -> false
         end
       end
 

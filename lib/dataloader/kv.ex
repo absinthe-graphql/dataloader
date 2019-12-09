@@ -79,15 +79,10 @@ defmodule Dataloader.KV do
     end
 
     defp fetched?(results, batch_key, id) do
-      with {:ok, batch} <- Map.fetch(results, batch_key) do
-        case Map.fetch(batch, id) do
-          :error -> false
-          {:ok, {:error, _reason}} -> false
-          {:ok, _item} -> true
-        end
-      else
-        :error ->
-          false
+      case results do
+        %{^batch_key => %{^id => {:error, _}}}  -> false
+        %{^batch_key => %{^id => _}}  -> true
+        _ -> false
       end
     end
 
