@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.7 - 2020-01-09
+
+- Improvement: Optimize out inspect calls when keys are not found  ([#84](https://github.com/absinthe-graphql/dataloader/pull/84))
+- KV source bug fixes ([#75](https://github.com/absinthe-graphql/dataloader/pull/75))
+- Doc improvements
+
 ## v1.0.6 - 2019-02-06
 
 - Bug Fix: Depend on `ecto` instead of `ecto_sql`. Fixes Ecto 2.x support
