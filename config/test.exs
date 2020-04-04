@@ -2,6 +2,7 @@ use Mix.Config
 
 config :dataloader, Dataloader.TestRepo,
   hostname: "localhost",
+  username: "postgres",
   database: "dataloader_test",
   pool: Ecto.Adapters.SQL.Sandbox
 

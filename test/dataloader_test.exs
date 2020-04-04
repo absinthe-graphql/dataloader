@@ -1,5 +1,5 @@
 defmodule DataloaderTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: false
   import ExUnit.CaptureLog
 
   doctest Dataloader
@@ -64,12 +64,34 @@ defmodule DataloaderTest do
       assert result == [id: "ben", username: "Ben Wilson"]
     end
 
-    test "get_many/4 returns a value when successful", %{loader: loader} do
+    test "get_many/4 returns a value when successful and should emit telemetry events", %{
+      loader: loader,
+      test: test
+    } do
+      :ok =
+        :telemetry.attach_many(
+          "#{test}",
+          [
+            [:absinthe, :middleware, :dataloader, :start],
+            [:absinthe, :middleware, :dataloader, :stop]
+          ],
+          fn name, measurements, metadata, _ ->
+            send(self(), {:telemetry_event, name, measurements, metadata})
+          end,
+          nil
+        )
+
       result =
         loader
         |> Dataloader.load_many(:test, :users, ["ben", "bruce"])
         |> Dataloader.run()
         |> Dataloader.get_many(:test, :users, ["ben", "bruce"])
+
+      assert_receive {:telemetry_event, [:absinthe, :middleware, :dataloader, :start],
+                      %{start_time: _}, %{id: _, dataloader: _}}
+
+      assert_receive {:telemetry_event, [:absinthe, :middleware, :dataloader, :stop],
+                      %{duration: _}, %{id: _, dataloader: _, start_time: _}}
 
       assert result == [
                [id: "ben", username: "Ben Wilson"],
