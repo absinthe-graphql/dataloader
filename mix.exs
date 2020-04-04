@@ -17,7 +17,8 @@ defmodule Dataloader.Mixfile do
         main: "Dataloader",
         source_ref: "v#{@version}",
         extras: [
-          "CHANGELOG.md"
+          "CHANGELOG.md",
+          "guides/telemetry.md"
         ]
       ],
       deps: deps()
