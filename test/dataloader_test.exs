@@ -88,10 +88,10 @@ defmodule DataloaderTest do
         |> Dataloader.get_many(:test, :users, ["ben", "bruce"])
 
       assert_receive {:telemetry_event, [:absinthe, :middleware, :dataloader, :start],
-                      %{start_time: _}, %{id: _, dataloader: _}}
+                      %{system_time: _}, %{id: _, dataloader: _}}
 
       assert_receive {:telemetry_event, [:absinthe, :middleware, :dataloader, :stop],
-                      %{duration: _}, %{id: _, dataloader: _, start_time: _}}
+                      %{duration: _}, %{id: _, dataloader: _}}
 
       assert result == [
                [id: "ben", username: "Ben Wilson"],

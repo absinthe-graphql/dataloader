@@ -144,10 +144,10 @@ defmodule Dataloader do
     if pending_batches?(dataloader) do
       fun = fn {name, source} -> {name, Source.run(source)} end
       id = :erlang.unique_integer()
-      start_time = System.system_time()
+      system_time = System.system_time()
       start_time_mono = System.monotonic_time()
 
-      emit_start_event(id, start_time, dataloader)
+      emit_start_event(id, system_time, dataloader)
 
       sources =
         async_safely(__MODULE__, :run_tasks, [
@@ -163,7 +163,7 @@ defmodule Dataloader do
 
       updated_dataloader = %{dataloader | sources: sources}
 
-      emit_stop_event(id, start_time, start_time_mono, updated_dataloader)
+      emit_stop_event(id, system_time, start_time_mono, updated_dataloader)
 
       updated_dataloader
     else
@@ -171,10 +171,10 @@ defmodule Dataloader do
     end
   end
 
-  defp emit_start_event(id, start_time, dataloader) do
+  defp emit_start_event(id, system_time, dataloader) do
     :telemetry.execute(
       [:absinthe, :middleware, :dataloader, :start],
-      %{start_time: start_time},
+      %{system_time: system_time},
       %{id: id, dataloader: dataloader}
     )
   end
@@ -183,7 +183,7 @@ defmodule Dataloader do
     :telemetry.execute(
       [:absinthe, :middleware, :dataloader, :stop],
       %{duration: System.monotonic_time() - start_time_mono},
-      %{id: id, dataloader: dataloader, start_time: start_time}
+      %{id: id, dataloader: dataloader}
     )
   end
 
