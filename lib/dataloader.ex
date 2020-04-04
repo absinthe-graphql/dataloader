@@ -163,7 +163,7 @@ defmodule Dataloader do
 
       updated_dataloader = %{dataloader | sources: sources}
 
-      emit_stop_event(id, system_time, start_time_mono, updated_dataloader)
+      emit_stop_event(id, start_time_mono, updated_dataloader)
 
       updated_dataloader
     else
@@ -179,7 +179,7 @@ defmodule Dataloader do
     )
   end
 
-  defp emit_stop_event(id, start_time, start_time_mono, dataloader) do
+  defp emit_stop_event(id, start_time_mono, dataloader) do
     :telemetry.execute(
       [:absinthe, :middleware, :dataloader, :stop],
       %{duration: System.monotonic_time() - start_time_mono},
