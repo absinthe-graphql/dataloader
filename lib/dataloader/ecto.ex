@@ -138,8 +138,12 @@ if Code.ensure_loaded?(Ecto) do
     ## Custom batch queries
 
     There are cases where you want to run the batch function yourself. To do this
-    we can add a custom `run_batch/5` callback to our source. For example, we want
-    to get the post count for a set of users.
+    we can add a custom `run_batch/5` callback to our source.
+
+    The `run_batch/5` function is executed with the query returned from the `query/2`
+    function.
+
+    For example, we want to get the post count for a set of users.
 
     First we add a custom `run_batch/5` function.
 
@@ -182,8 +186,8 @@ if Code.ensure_loaded?(Ecto) do
     [user1, user2] = [%User{id: 1}, %User{id: 2}]
 
     rows = [
-      %{user_id: user1.id, title: "foo"},
-      %{user_id: user1.id, title: "baz"}
+      %{user_id: user1.id, title: "foo", published: true},
+      %{user_id: user1.id, title: "baz", published: false}
     ]
 
     _ = Repo.insert_all(Post, rows)
@@ -191,6 +195,7 @@ if Code.ensure_loaded?(Ecto) do
     source =
       Dataloader.Ecto.new(
         Repo,
+        query: &query/2,
         run_batch: &run_batch/5
       )
 
@@ -209,6 +214,38 @@ if Code.ensure_loaded?(Ecto) do
     # Returns 0
     Dataloader.get(loader, Posts, {:one, Post}, post_count: user2)
 
+    ```
+
+    Additional params for the `query/2` function can be passed to the load functions
+    with a 3-tuple.
+
+    For example, to limit the above example to only return published we can add a query
+    function to filter the published posts:
+
+    ```
+    def query(Post, %{published: published}) do
+      from p in Post,
+      where: p.published == ^published
+    end
+
+    def query(queryable, _) do
+      queryable
+    end
+    ```
+
+    And we can return the published posts with a 3-tuple on the loader:
+
+    ```
+    loader =
+    loader
+    |> Dataloader.load(Posts, {:one, Post}, post_count: user1)
+    |> Dataloader.load(Posts, {:one, Post, %{published: true}}, post_count: user1)
+    |> Dataloader.run()
+
+    # Returns 2
+    Dataloader.get(loader, Posts, {:one, Post}, post_count: user1)
+    # Returns 1
+    Dataloader.get(loader, Posts, {:one, Post, %{published: true}}, post_count: user1)
     ```
 
 
