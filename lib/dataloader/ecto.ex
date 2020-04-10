@@ -138,8 +138,12 @@ if Code.ensure_loaded?(Ecto) do
     ## Custom batch queries
 
     There are cases where you want to run the batch function yourself. To do this
-    we can add a custom `run_batch/5` callback to our source. For example, we want
-    to get the post count for a set of users.
+    we can add a custom `run_batch/5` callback to our source.
+
+    The `run_batch/5` function is executed with the query returned from the `query/2`
+    function.
+
+    For example, we want to get the post count for a set of users.
 
     First we add a custom `run_batch/5` function.
 
