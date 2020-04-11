@@ -72,8 +72,8 @@ defmodule DataloaderTest do
         :telemetry.attach_many(
           "#{test}",
           [
-            [:dataloader, :batches, :run, :start],
-            [:dataloader, :batches, :run, :stop]
+            [:dataloader, :source, :run, :start],
+            [:dataloader, :source, :run, :stop]
           ],
           fn name, measurements, metadata, _ ->
             send(self(), {:telemetry_event, name, measurements, metadata})
@@ -87,10 +87,10 @@ defmodule DataloaderTest do
         |> Dataloader.run()
         |> Dataloader.get_many(:test, :users, ["ben", "bruce"])
 
-      assert_receive {:telemetry_event, [:dataloader, :batches, :run, :start], %{system_time: _},
+      assert_receive {:telemetry_event, [:dataloader, :source, :run, :start], %{system_time: _},
                       %{id: _, dataloader: _}}
 
-      assert_receive {:telemetry_event, [:dataloader, :batches, :run, :stop], %{duration: _},
+      assert_receive {:telemetry_event, [:dataloader, :source, :run, :stop], %{duration: _},
                       %{id: _, dataloader: _}}
 
       assert result == [

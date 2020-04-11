@@ -173,7 +173,7 @@ defmodule Dataloader do
 
   defp emit_start_event(id, system_time, dataloader) do
     :telemetry.execute(
-      [:dataloader, :batches, :run, :start],
+      [:dataloader, :source, :run, :start],
       %{system_time: system_time},
       %{id: id, dataloader: dataloader}
     )
@@ -181,7 +181,7 @@ defmodule Dataloader do
 
   defp emit_stop_event(id, start_time_mono, dataloader) do
     :telemetry.execute(
-      [:dataloader, :batches, :run, :stop],
+      [:dataloader, :source, :run, :stop],
       %{duration: System.monotonic_time() - start_time_mono},
       %{id: id, dataloader: dataloader}
     )
