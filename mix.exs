@@ -63,7 +63,7 @@ defmodule Dataloader.Mixfile do
   defp deps do
     [
       {:ecto, ">= 0.0.0", optional: true},
-      {:telemetry, "~> 0.4.1"},
+      {:telemetry, "~> 0.4"},
       {:ecto_sql, "~> 3.0", optional: true, only: :test},
       {:postgrex, "~> 0.14", only: :test},
       {:dialyxir, "~> 0.5", only: :dev},
