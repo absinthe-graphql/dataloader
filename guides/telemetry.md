@@ -7,6 +7,8 @@ handler function to any of the following event names:
 
 - `[:dataloader, :batches, :run, :start]` when the dataloader processing starts
 - `[:dataloader, :batches, :run, :stop]` when the dataloader processing finishes
+- `[:dataloader, :source, :batch, :run, :start]` when the dataloader starts processing a single batch
+- `[:dataloader, :source, :batch, :run, :stop]` when the dataloader finishes processing a single batch
 
 Telemetry handlers are called with `measurements` and `metadata`. For details on
 what is passed, checkout `Dataloader`.
