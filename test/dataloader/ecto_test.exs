@@ -36,7 +36,22 @@ defmodule Dataloader.EctoTest do
     queryable
   end
 
-  test "basic loading works", %{loader: loader} do
+  test "basic loading works along with telemetry metrics", %{loader: loader, test: test} do
+    self = self()
+
+    :ok =
+      :telemetry.attach_many(
+        "#{test}",
+        [
+          [:dataloader, :source, :batch, :run, :start],
+          [:dataloader, :source, :batch, :run, :stop]
+        ],
+        fn name, measurements, metadata, _ ->
+          send(self, {:telemetry_event, name, measurements, metadata})
+        end,
+        nil
+      )
+
     users = [
       %{username: "Ben Wilson"}
     ]
@@ -59,6 +74,12 @@ defmodule Dataloader.EctoTest do
 
     assert length(loaded_users) == 1
     assert users == loaded_users
+
+    assert_receive {:telemetry_event, [:dataloader, :source, :batch, :run, :start],
+                    %{system_time: _}, %{id: _, batch: _}}
+
+    assert_receive {:telemetry_event, [:dataloader, :source, :batch, :run, :stop], %{duration: _},
+                    %{id: _, batch: _}}
 
     # loading again doesn't query again due to caching
     loader

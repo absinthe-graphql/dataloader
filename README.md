@@ -60,3 +60,20 @@ Dataloader ships with two different built in sources. The first is the Ecto sour
 Anything that implements the `Dataloader.Source` protocol can act as a source.
 
 Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc). The docs can be found at [https://hexdocs.pm/dataloader](https://hexdocs.pm/dataloader).
+
+## Contributing
+
+Running tests for Dataloader requires a running instance of Postgres. The easiest way to do this is to run Postgres inside of Docker whilst running the Dataloader tests. In one terminal run:
+
+```terminal
+$ docker run -p 5432:5432 postgres
+```
+
+and in another terminal run:
+
+```terminal
+$ MIX_ENV=test mix ecto.setup
+$ mix test
+```
+
+If you kill the docker process, you will need to rerun the `ecto.setup` command as the data in the container is ephemeral (no mounted volumes are leveraged).
