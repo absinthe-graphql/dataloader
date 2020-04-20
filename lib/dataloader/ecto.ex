@@ -518,7 +518,20 @@ if Code.ensure_loaded?(Ecto) do
 
         results =
           source.batches
-          |> Task.async_stream(&run_batch(&1, source), options)
+          |> Task.async_stream(
+            fn batch ->
+              id = :erlang.unique_integer()
+              system_time = System.system_time()
+              start_time_mono = System.monotonic_time()
+
+              emit_start_event(id, system_time, batch)
+              batch_result = run_batch(batch, source)
+              emit_stop_event(id, start_time_mono, batch)
+
+              batch_result
+            end,
+            options
+          )
           |> Enum.map(fn
             {:ok, {_key, result}} -> {:ok, result}
             {:exit, reason} -> {:error, reason}
@@ -582,6 +595,22 @@ if Code.ensure_loaded?(Ecto) do
           |> Enum.map(&Map.get(&1, field))
 
         {key, Map.new(Enum.zip(ids, results))}
+      end
+
+      defp emit_start_event(id, system_time, batch) do
+        :telemetry.execute(
+          [:dataloader, :source, :batch, :run, :start],
+          %{system_time: system_time},
+          %{id: id, batch: batch}
+        )
+      end
+
+      defp emit_stop_event(id, start_time_mono, batch) do
+        :telemetry.execute(
+          [:dataloader, :source, :batch, :run, :stop],
+          %{duration: System.monotonic_time() - start_time_mono},
+          %{id: id, batch: batch}
+        )
       end
 
       defp cardinality_mapper(:many, _) do

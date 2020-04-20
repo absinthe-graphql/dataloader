@@ -68,6 +68,8 @@ defmodule DataloaderTest do
       loader: loader,
       test: test
     } do
+      self = self()
+
       :ok =
         :telemetry.attach_many(
           "#{test}",
@@ -76,7 +78,7 @@ defmodule DataloaderTest do
             [:dataloader, :source, :run, :stop]
           ],
           fn name, measurements, metadata, _ ->
-            send(self(), {:telemetry_event, name, measurements, metadata})
+            send(self, {:telemetry_event, name, measurements, metadata})
           end,
           nil
         )
