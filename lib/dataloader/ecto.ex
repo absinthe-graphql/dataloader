@@ -265,7 +265,7 @@ if Code.ensure_loaded?(Ecto) do
     @type t :: %__MODULE__{
             repo: Ecto.Repo.t(),
             query: query_fun,
-            repo_opts: Keyword.t(),
+            repo_opts: repo_opts,
             batches: map,
             results: map,
             default_params: map,
@@ -316,6 +316,14 @@ if Code.ensure_loaded?(Ecto) do
     Default implementation for loading a batch. Handles looking up records by
     column
     """
+    @spec run_batch(
+            repo :: Ecto.Repo.t(),
+            queryable :: Ecto.Queryable.t(),
+            query :: Ecto.Query.t(),
+            col :: any,
+            inputs :: [any],
+            repo_opts :: repo_opts
+          ) :: [any]
     def run_batch(repo, _queryable, query, col, inputs, repo_opts) do
       results = load_rows(col, inputs, query, repo, repo_opts)
       grouped_results = group_results(results, col)
