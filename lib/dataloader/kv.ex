@@ -80,8 +80,8 @@ defmodule Dataloader.KV do
 
     defp fetched?(results, batch_key, id) do
       case results do
-        %{^batch_key => %{^id => {:error, _}}}  -> false
-        %{^batch_key => %{^id => _}}  -> true
+        %{^batch_key => %{^id => {:error, _}}} -> false
+        %{^batch_key => %{^id => _}} -> true
         _ -> false
       end
     end
