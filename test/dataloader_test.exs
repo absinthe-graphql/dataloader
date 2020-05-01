@@ -53,6 +53,23 @@ defmodule DataloaderTest do
     end
   end
 
+  describe "unknown sources" do
+    test "load/3 for unknown source returns error", %{loader: loader} do
+      assert_raise RuntimeError, ~r/Source does not exist/, fn ->
+        loader |> Dataloader.load(:bogus, :users, "ben")
+      end
+    end
+
+    test "get/3 for unknown source returns error", %{loader: loader} do
+      assert_raise RuntimeError, ~r/Source does not exist/, fn ->
+        loader
+        # |> Dataloader.load(:test, :users, "ben")
+        |> Dataloader.run()
+        |> Dataloader.get(:test, :users, "ben")
+      end
+    end
+  end
+
   describe "get methods when configured to raise an error" do
     test "get/4 returns a value when successful", %{loader: loader} do
       result =

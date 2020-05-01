@@ -239,7 +239,14 @@ defmodule Dataloader do
   end
 
   defp get_source(loader, source_name) do
-    loader.sources[source_name] || raise "Source does not exist: #{inspect(source_name)}"
+    loader.sources[source_name] ||
+      raise """
+      Source does not exist: #{inspect(source_name)}
+
+      Registered sources are:
+
+      #{inspect(Enum.map(loader.sources, fn {source, _} -> source end))}
+      """
   end
 
   @doc """
