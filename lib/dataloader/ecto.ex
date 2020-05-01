@@ -490,8 +490,12 @@ if Code.ensure_loaded?(Ecto) do
           {:primary, col, value} ->
             {{:queryable, self(), queryable, :one, col, opts}, value, value}
 
-          _ ->
-            raise "cardinality required unless using primary key"
+          {:not_primary, col, _value} ->
+            raise """
+            Cardinality required unless using primary key
+
+            The non-primary key column specified was: #{inspect(col)}
+            """
         end
       end
 

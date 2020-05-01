@@ -289,7 +289,7 @@ defmodule Dataloader.EctoTest do
         Dataloader.load(loader, Test, {User, %{foo: :bar}}, username: 1)
       end)
 
-    assert message =~ "cardinality"
+    assert message =~ "Cardinality"
   end
 
   test "works with has many through", %{loader: loader} do
