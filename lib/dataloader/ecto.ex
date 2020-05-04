@@ -265,7 +265,7 @@ if Code.ensure_loaded?(Ecto) do
     @type t :: %__MODULE__{
             repo: Ecto.Repo.t(),
             query: query_fun,
-            repo_opts: Keyword.t(),
+            repo_opts: repo_opts,
             batches: map,
             results: map,
             default_params: map,
@@ -316,6 +316,14 @@ if Code.ensure_loaded?(Ecto) do
     Default implementation for loading a batch. Handles looking up records by
     column
     """
+    @spec run_batch(
+            repo :: Ecto.Repo.t(),
+            queryable :: Ecto.Queryable.t(),
+            query :: Ecto.Query.t(),
+            col :: any,
+            inputs :: [any],
+            repo_opts :: repo_opts
+          ) :: [any]
     def run_batch(repo, _queryable, query, col, inputs, repo_opts) do
       results = load_rows(col, inputs, query, repo, repo_opts)
       grouped_results = group_results(results, col)
@@ -482,8 +490,12 @@ if Code.ensure_loaded?(Ecto) do
           {:primary, col, value} ->
             {{:queryable, self(), queryable, :one, col, opts}, value, value}
 
-          _ ->
-            raise "cardinality required unless using primary key"
+          {:not_primary, col, _value} ->
+            raise """
+            Cardinality required unless using primary key
+
+            The non-primary key column specified was: #{inspect(col)}
+            """
         end
       end
 

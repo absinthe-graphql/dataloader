@@ -239,7 +239,14 @@ defmodule Dataloader do
   end
 
   defp get_source(loader, source_name) do
-    loader.sources[source_name] || raise "Source does not exist: #{inspect(source_name)}"
+    loader.sources[source_name] ||
+      raise """
+      Source does not exist: #{inspect(source_name)}
+
+      Registered sources are:
+
+      #{inspect(Enum.map(loader.sources, fn {source, _} -> source end))}
+      """
   end
 
   @doc """
@@ -319,8 +326,6 @@ defmodule Dataloader do
   end
 
   @doc """
-  This function is depreacted in favour of `async_safely/3`
-
   This used to be used by both the `Dataloader` module for running multiple
   source queries concurrently, and the `KV` and `Ecto` sources to actually run
   separate batch fetches (e.g. for `Posts` and `Users` at the same time).
@@ -331,6 +336,7 @@ defmodule Dataloader do
 
   Please use `async_safely/3` instead of this for fetching data from sources
   """
+  @doc deprecated: "Use async_safely/3 instead"
   @spec pmap(list(), fun(), keyword()) :: map()
   def pmap(items, fun, opts \\ []) do
     async_safely(__MODULE__, :run_tasks, [items, fun, opts])
