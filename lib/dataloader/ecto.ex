@@ -324,8 +324,8 @@ if Code.ensure_loaded?(Ecto) do
             inputs :: [any],
             repo_opts :: repo_opts
           ) :: [any]
-    def run_batch(repo, _queryable, query, col, inputs, repo_opts) do
-      results = load_rows(col, inputs, query, repo, repo_opts)
+    def run_batch(repo, queryable, query, col, inputs, repo_opts) do
+      results = load_rows(col, inputs, queryable, query, repo, repo_opts)
       grouped_results = group_results(results, col)
 
       for value <- inputs do
@@ -335,9 +335,33 @@ if Code.ensure_loaded?(Ecto) do
       end
     end
 
-    defp load_rows(col, inputs, query, repo, repo_opts) do
-      query
-      |> where([q], field(q, ^col) in ^inputs)
+    defp load_rows(col, inputs, queryable, query, repo, repo_opts) do
+      case query do
+        %Ecto.Query{limit: limit, offset: offset} when not is_nil(limit) or not is_nil(offset) ->
+          load_rows_lateral(col, inputs, queryable, query, repo, repo_opts)
+
+        _ ->
+          query
+          |> where([q], field(q, ^col) in ^inputs)
+          |> repo.all(repo_opts)
+      end
+    end
+
+    defp load_rows_lateral(col, inputs, queryable, query, repo, repo_opts) do
+      # Approximate a postgres unnest with a subquery
+      inputs_query =
+        queryable
+        |> where([q], field(q, ^col) in ^inputs)
+        |> select(^[col])
+        |> distinct(true)
+
+      query =
+        query
+        |> where([q], field(q, ^col) == field(parent_as(:input), ^col))
+
+      from(input in subquery(inputs_query), as: :input)
+      |> join(:inner_lateral, q in subquery(query))
+      |> select([_input, q], q)
       |> repo.all(repo_opts)
     end
 
