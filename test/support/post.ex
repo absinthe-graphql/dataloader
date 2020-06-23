@@ -4,6 +4,7 @@ defmodule Dataloader.Post do
   schema "posts" do
     belongs_to(:user, Dataloader.User)
     has_many(:likes, Dataloader.Like)
+    has_many(:scores, Dataloader.Score)
     has_many(:liking_users, through: [:likes, :user])
 
     field(:title, :string)
