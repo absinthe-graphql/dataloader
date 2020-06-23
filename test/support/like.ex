@@ -3,6 +3,6 @@ defmodule Dataloader.Like do
 
   schema "likes" do
     belongs_to(:user, Dataloader.User)
-    belongs_to(:post, Dataloader.User)
+    belongs_to(:post, Dataloader.Post)
   end
 end
