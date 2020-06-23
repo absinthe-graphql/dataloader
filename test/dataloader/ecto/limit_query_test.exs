@@ -23,26 +23,12 @@ defmodule Dataloader.LimitQueryTest do
     {:ok, loader: loader}
   end
 
-  defp query(Post, %{limit: limit, order_by: order_by}, test_pid) do
-    send(test_pid, :querying)
-
-    Post
-    |> where([p], is_nil(p.deleted_at))
-    |> order_by(^order_by)
-    |> limit(^limit)
-  end
-
   defp query(schema, %{limit: limit, order_by: order_by}, test_pid) do
     send(test_pid, :querying)
 
     schema
     |> order_by(^order_by)
     |> limit(^limit)
-  end
-
-  defp query(queryable, _args, test_pid) do
-    send(test_pid, :querying)
-    queryable
   end
 
   test "Query limit does not apply globally", %{loader: loader} do
