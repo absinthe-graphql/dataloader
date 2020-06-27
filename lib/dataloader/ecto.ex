@@ -676,8 +676,13 @@ if Code.ensure_loaded?(Ecto) do
       def preload_lateral([%schema{} | _] = structs, assoc, query, repo, repo_opts) do
         [pk] = schema.__schema__(:primary_key)
 
-        assocs = expand_assocs(schema, [assoc]) |> Enum.reverse()
-        inner_query = build_preload_lateral_query(assocs, query) |> distinct(true)
+        assocs = expand_assocs(schema, [assoc])
+
+        inner_query =
+          assocs
+          |> Enum.reverse()
+          |> build_preload_lateral_query(query)
+          |> maybe_distinct(assocs)
 
         results =
           from(x in schema,
@@ -755,6 +760,14 @@ if Code.ensure_loaded?(Ecto) do
 
         build_preload_lateral_query(rest, query)
       end
+
+      defp maybe_distinct(query, [%Ecto.Association.Has{}, %Ecto.Association.BelongsTo{} | _]) do
+        distinct(query, true)
+      end
+
+      defp maybe_distinct(query, [%Ecto.Association.ManyToMany{} | _]), do: distinct(query, true)
+      defp maybe_distinct(query, [_assoc | rest]), do: maybe_distinct(query, rest)
+      defp maybe_distinct(query, []), do: query
 
       defp emit_start_event(id, system_time, batch) do
         :telemetry.execute(
