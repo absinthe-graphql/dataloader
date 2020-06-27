@@ -677,7 +677,7 @@ if Code.ensure_loaded?(Ecto) do
         [pk] = schema.__schema__(:primary_key)
 
         assocs = expand_assocs(schema, [assoc]) |> Enum.reverse()
-        inner_query = build_preload_lateral_query(assocs, query)
+        inner_query = build_preload_lateral_query(assocs, query) |> distinct(true)
 
         results =
           from(x in schema,
