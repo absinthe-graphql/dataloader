@@ -23,6 +23,18 @@ defmodule Dataloader.LimitQueryTest do
     {:ok, loader: loader}
   end
 
+  defp query(Post, %{limit: limit, order_by: order_by, min_likes: n}, test_pid) do
+    send(test_pid, :querying)
+
+    Post
+    |> from(as: :post)
+    |> join(:inner, [post: p], l in assoc(p, :likes), as: :like)
+    |> group_by([post: p], p.id)
+    |> having(count() >= ^n)
+    |> order_by(^order_by)
+    |> limit(^limit)
+  end
+
   defp query(schema, %{limit: limit, order_by: order_by}, test_pid) do
     send(test_pid, :querying)
 
@@ -175,5 +187,32 @@ defmodule Dataloader.LimitQueryTest do
 
     assert [post1] == Dataloader.get(loader, Test, args, user3)
     assert [post4] == Dataloader.get(loader, Test, args, user4)
+  end
+
+  test "Loads association when query contains joins", %{loader: loader} do
+    leaderboard = %Dataloader.Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
+    user1 = %User{username: "Ben Wilson", leaderboard: leaderboard} |> Repo.insert!()
+    user2 = %User{username: "Bruce Williams", leaderboard: leaderboard} |> Repo.insert!()
+
+    _post1 = %Post{user_id: user1.id, title: "foo"} |> Repo.insert!()
+    post2 = %Post{user_id: user1.id, title: "bar"} |> Repo.insert!()
+    post3 = %Post{user_id: user2.id, title: "baz"} |> Repo.insert!()
+    _post4 = %Post{user_id: user2.id, title: "qux"} |> Repo.insert!()
+
+    %Like{user_id: user2.id, post_id: post2.id} |> Repo.insert!()
+    %Like{user_id: user1.id, post_id: post3.id} |> Repo.insert!()
+
+    %Score{post: post2, leaderboard: leaderboard} |> Repo.insert!()
+    %Score{post: post3, leaderboard: leaderboard} |> Repo.insert!()
+
+    args = {:awarded_posts, %{limit: 1, order_by: [asc: :title], min_likes: 1}}
+
+    loader =
+      loader
+      |> Dataloader.load_many(Test, args, [user1, user2])
+      |> Dataloader.run()
+
+    assert [post2] = Dataloader.get(loader, Test, args, user1)
+    assert [post3] = Dataloader.get(loader, Test, args, user2)
   end
 end
