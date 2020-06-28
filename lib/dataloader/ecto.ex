@@ -681,7 +681,7 @@ if Code.ensure_loaded?(Ecto) do
         inner_query =
           assocs
           |> Enum.reverse()
-          |> build_preload_lateral_query(query)
+          |> build_preload_lateral_query(query, :join_first)
           |> maybe_distinct(assocs)
 
         results =
@@ -718,7 +718,25 @@ if Code.ensure_loaded?(Ecto) do
         end
       end
 
-      defp build_preload_lateral_query([%Ecto.Association.ManyToMany{} = assoc], query) do
+      defp build_preload_lateral_query(
+             [%Ecto.Association.ManyToMany{} = assoc],
+             query,
+             :join_first
+           ) do
+        [{owner_join_key, owner_key}, {related_join_key, related_key}] = assoc.join_keys
+
+        query
+        |> join(:inner, [x], y in ^assoc.join_through,
+          on: field(x, ^related_key) == field(y, ^related_join_key)
+        )
+        |> where([..., x], field(x, ^owner_join_key) == field(parent_as(:parent), ^owner_key))
+      end
+
+      defp build_preload_lateral_query(
+             [%Ecto.Association.ManyToMany{} = assoc],
+             query,
+             :join_last
+           ) do
         [{owner_join_key, owner_key}, {related_join_key, related_key}] = assoc.join_keys
 
         query
@@ -728,7 +746,12 @@ if Code.ensure_loaded?(Ecto) do
         |> where([..., x], field(x, ^owner_join_key) == field(parent_as(:parent), ^owner_key))
       end
 
-      defp build_preload_lateral_query([assoc], query) do
+      defp build_preload_lateral_query([assoc], query, :join_first) do
+        query
+        |> where([x], field(x, ^assoc.related_key) == field(parent_as(:parent), ^assoc.owner_key))
+      end
+
+      defp build_preload_lateral_query([assoc], query, :join_last) do
         query
         |> where(
           [..., x],
@@ -736,7 +759,30 @@ if Code.ensure_loaded?(Ecto) do
         )
       end
 
-      defp build_preload_lateral_query([%Ecto.Association.ManyToMany{} = assoc | rest], query) do
+      defp build_preload_lateral_query(
+             [%Ecto.Association.ManyToMany{} = assoc | rest],
+             query,
+             :join_first
+           ) do
+        [{owner_join_key, owner_key}, {related_join_key, related_key}] = assoc.join_keys
+
+        query =
+          query
+          |> join(:inner, [x], y in ^assoc.join_through,
+            on: field(x, ^related_key) == field(y, ^related_join_key)
+          )
+          |> join(:inner, [..., x], y in ^assoc.owner,
+            on: field(x, ^owner_join_key) == field(y, ^owner_key)
+          )
+
+        build_preload_lateral_query(rest, query, :join_last)
+      end
+
+      defp build_preload_lateral_query(
+             [%Ecto.Association.ManyToMany{} = assoc | rest],
+             query,
+             :join_last
+           ) do
         [{owner_join_key, owner_key}, {related_join_key, related_key}] = assoc.join_keys
 
         query =
@@ -748,17 +794,27 @@ if Code.ensure_loaded?(Ecto) do
             on: field(x, ^owner_join_key) == field(y, ^owner_key)
           )
 
-        build_preload_lateral_query(rest, query)
+        build_preload_lateral_query(rest, query, :join_last)
       end
 
-      defp build_preload_lateral_query([assoc | rest], query) do
+      defp build_preload_lateral_query([assoc | rest], query, :join_first) do
+        query =
+          query
+          |> join(:inner, [x], y in ^assoc.owner,
+            on: field(x, ^assoc.related_key) == field(y, ^assoc.owner_key)
+          )
+
+        build_preload_lateral_query(rest, query, :join_last)
+      end
+
+      defp build_preload_lateral_query([assoc | rest], query, :join_last) do
         query =
           query
           |> join(:inner, [..., x], y in ^assoc.owner,
             on: field(x, ^assoc.related_key) == field(y, ^assoc.owner_key)
           )
 
-        build_preload_lateral_query(rest, query)
+        build_preload_lateral_query(rest, query, :join_last)
       end
 
       defp maybe_distinct(query, [%Ecto.Association.Has{}, %Ecto.Association.BelongsTo{} | _]) do
