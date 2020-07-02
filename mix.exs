@@ -62,7 +62,7 @@ defmodule Dataloader.Mixfile do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ecto, ">= 0.0.0", optional: true},
+      {:ecto, ">= 3.4.3 and < 4.0.0", optional: true},
       {:telemetry, "~> 0.4"},
       {:ecto_sql, "~> 3.0", optional: true, only: :test},
       {:postgrex, "~> 0.14", only: :test},
