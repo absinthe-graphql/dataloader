@@ -292,55 +292,57 @@ defmodule Dataloader.EctoTest do
     assert message =~ "Cardinality"
   end
 
-  test "works with has many through", %{loader: loader} do
-    user1 = %User{username: "Ben Wilson"} |> Repo.insert!()
-    user2 = %User{username: "Bruce Williams"} |> Repo.insert!()
+  describe "has_many through:" do
+    test "basic loading works", %{loader: loader} do
+      user1 = %User{username: "Ben Wilson"} |> Repo.insert!()
+      user2 = %User{username: "Bruce Williams"} |> Repo.insert!()
 
-    post1 = %Post{user_id: user1.id} |> Repo.insert!()
+      post1 = %Post{user_id: user1.id} |> Repo.insert!()
 
-    [
-      %Like{user_id: user1.id, post_id: post1.id},
-      %Like{user_id: user2.id, post_id: post1.id}
-    ]
-    |> Enum.map(&Repo.insert/1)
+      [
+        %Like{user_id: user1.id, post_id: post1.id},
+        %Like{user_id: user2.id, post_id: post1.id}
+      ]
+      |> Enum.map(&Repo.insert/1)
 
-    loader =
-      loader
-      |> Dataloader.load(Test, :liking_users, post1)
-      |> Dataloader.run()
+      loader =
+        loader
+        |> Dataloader.load(Test, :liking_users, post1)
+        |> Dataloader.run()
 
-    loaded_posts =
-      loader
-      |> Dataloader.get(Test, :liking_users, post1)
+      loaded_posts =
+        loader
+        |> Dataloader.get(Test, :liking_users, post1)
 
-    assert length(loaded_posts) == 2
-  end
+      assert length(loaded_posts) == 2
+    end
 
-  test "works with nested has many through", %{loader: loader} do
-    leaderboard = %Leaderboard{name: "Bestliked"} |> Repo.insert!()
-    user = %User{username: "Ben Wilson", leaderboard_id: leaderboard.id} |> Repo.insert!()
+    test "works when nested", %{loader: loader} do
+      leaderboard = %Leaderboard{name: "Bestliked"} |> Repo.insert!()
+      user = %User{username: "Ben Wilson", leaderboard_id: leaderboard.id} |> Repo.insert!()
 
-    post = %Post{user_id: user.id} |> Repo.insert!()
-    _score = %Score{post_id: post.id, leaderboard_id: leaderboard.id} |> Repo.insert!()
-    _like1 = %Like{post_id: post.id, user_id: user.id} |> Repo.insert!()
-    _like2 = %Like{post_id: post.id, user_id: user.id} |> Repo.insert!()
+      post = %Post{user_id: user.id} |> Repo.insert!()
+      _score = %Score{post_id: post.id, leaderboard_id: leaderboard.id} |> Repo.insert!()
+      _like1 = %Like{post_id: post.id, user_id: user.id} |> Repo.insert!()
+      _like2 = %Like{post_id: post.id, user_id: user.id} |> Repo.insert!()
 
-    loader =
-      loader
-      |> Dataloader.load(Test, :awarded_posts, user)
-      |> Dataloader.load(Test, :likes, user)
-      |> Dataloader.run()
+      loader =
+        loader
+        |> Dataloader.load(Test, :awarded_posts, user)
+        |> Dataloader.load(Test, :likes, user)
+        |> Dataloader.run()
 
-    loaded_posts =
-      loader
-      |> Dataloader.get(Test, :awarded_posts, user)
+      loaded_posts =
+        loader
+        |> Dataloader.get(Test, :awarded_posts, user)
 
-    loaded_likes =
-      loader
-      |> Dataloader.get(Test, :likes, user)
+      loaded_likes =
+        loader
+        |> Dataloader.get(Test, :likes, user)
 
-    assert length(loaded_posts) == 1
-    assert length(loaded_likes) == 2
+      assert length(loaded_posts) == 1
+      assert length(loaded_likes) == 2
+    end
   end
 
   test "preloads aren't used", %{loader: loader} do
