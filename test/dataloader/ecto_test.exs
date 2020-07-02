@@ -31,6 +31,13 @@ defmodule Dataloader.EctoTest do
     |> order_by(asc: :id)
   end
 
+  defp query(User, args, test_pid) do
+    send(test_pid, :querying)
+
+    User
+    |> where(^Enum.to_list(args))
+  end
+
   defp query(queryable, _args, test_pid) do
     send(test_pid, :querying)
     queryable
@@ -315,6 +322,32 @@ defmodule Dataloader.EctoTest do
         |> Dataloader.get(Test, :liking_users, post1)
 
       assert length(loaded_posts) == 2
+    end
+
+    test "works with query filtering", %{loader: loader} do
+      user1 = %User{username: "Ben Wilson"} |> Repo.insert!()
+      user2 = %User{username: "Bruce Williams"} |> Repo.insert!()
+
+      post1 = %Post{user_id: user1.id} |> Repo.insert!()
+
+      [
+        %Like{user_id: user1.id, post_id: post1.id},
+        %Like{user_id: user2.id, post_id: post1.id}
+      ]
+      |> Enum.map(&Repo.insert/1)
+
+      key = {:liking_users, %{username: "Ben Wilson"}}
+
+      loader =
+        loader
+        |> Dataloader.load(Test, key, post1)
+        |> Dataloader.run()
+
+      loaded_posts =
+        loader
+        |> Dataloader.get(Test, key, post1)
+
+      assert length(loaded_posts) == 1
     end
 
     test "works when nested", %{loader: loader} do
