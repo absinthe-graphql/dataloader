@@ -324,8 +324,8 @@ if Code.ensure_loaded?(Ecto) do
             inputs :: [any],
             repo_opts :: repo_opts
           ) :: [any]
-    def run_batch(repo, _queryable, query, col, inputs, repo_opts) do
-      results = load_rows(col, inputs, query, repo, repo_opts)
+    def run_batch(repo, queryable, query, col, inputs, repo_opts) do
+      results = load_rows(col, inputs, queryable, query, repo, repo_opts)
       grouped_results = group_results(results, col)
 
       for value <- inputs do
@@ -335,9 +335,33 @@ if Code.ensure_loaded?(Ecto) do
       end
     end
 
-    defp load_rows(col, inputs, query, repo, repo_opts) do
-      query
-      |> where([q], field(q, ^col) in ^inputs)
+    defp load_rows(col, inputs, queryable, query, repo, repo_opts) do
+      case query do
+        %Ecto.Query{limit: limit, offset: offset} when not is_nil(limit) or not is_nil(offset) ->
+          load_rows_lateral(col, inputs, queryable, query, repo, repo_opts)
+
+        _ ->
+          query
+          |> where([q], field(q, ^col) in ^inputs)
+          |> repo.all(repo_opts)
+      end
+    end
+
+    defp load_rows_lateral(col, inputs, queryable, query, repo, repo_opts) do
+      # Approximate a postgres unnest with a subquery
+      inputs_query =
+        queryable
+        |> where([q], field(q, ^col) in ^inputs)
+        |> select(^[col])
+        |> distinct(true)
+
+      query =
+        query
+        |> where([q], field(q, ^col) == field(parent_as(:input), ^col))
+
+      from(input in subquery(inputs_query), as: :input)
+      |> join(:inner_lateral, q in subquery(query))
+      |> select([_input, q], q)
       |> repo.all(repo_opts)
     end
 
@@ -629,22 +653,177 @@ if Code.ensure_loaded?(Ecto) do
 
       defp run_batch({{:assoc, schema, pid, field, queryable, opts} = key, records}, source) do
         {ids, records} = Enum.unzip(records)
-
-        query = source.query.(queryable, opts)
-        query = Ecto.Queryable.to_query(query)
-
+        query = source.query.(queryable, opts) |> Ecto.Queryable.to_query()
         repo_opts = Keyword.put(source.repo_opts, :caller, pid)
-
         empty = schema |> struct |> Map.fetch!(field)
+        records = records |> Enum.map(&Map.put(&1, field, empty))
 
         results =
-          records
-          |> Enum.map(&Map.put(&1, field, empty))
-          |> source.repo.preload([{field, query}], repo_opts)
-          |> Enum.map(&Map.get(&1, field))
+          if query.limit || query.offset do
+            records
+            |> preload_lateral(field, query, source.repo, repo_opts)
+          else
+            records
+            |> source.repo.preload([{field, query}], repo_opts)
+          end
 
+        results = results |> Enum.map(&Map.get(&1, field))
         {key, Map.new(Enum.zip(ids, results))}
       end
+
+      def preload_lateral([], _assoc, _query, _opts), do: []
+
+      def preload_lateral([%schema{} | _] = structs, assoc, query, repo, repo_opts) do
+        [pk] = schema.__schema__(:primary_key)
+
+        assocs = expand_assocs(schema, [assoc])
+
+        inner_query =
+          assocs
+          |> Enum.reverse()
+          |> build_preload_lateral_query(query, :join_first)
+          |> maybe_distinct(assocs)
+
+        results =
+          from(x in schema,
+            as: :parent,
+            inner_lateral_join: y in subquery(inner_query),
+            where: field(x, ^pk) in ^Enum.map(structs, &Map.get(&1, pk)),
+            select: {field(x, ^pk), y}
+          )
+          |> repo.all(repo_opts)
+
+        {keyed, default} =
+          case schema.__schema__(:association, assoc) do
+            %{cardinality: :one} ->
+              {results |> Map.new(), nil}
+
+            %{cardinality: :many} ->
+              {Enum.group_by(results, fn {k, _} -> k end, fn {_, v} -> v end), []}
+          end
+
+        structs
+        |> Enum.map(&Map.put(&1, assoc, Map.get(keyed, Map.get(&1, pk), default)))
+      end
+
+      defp expand_assocs(_schema, []), do: []
+
+      defp expand_assocs(schema, [assoc | rest]) do
+        case schema.__schema__(:association, assoc) do
+          %Ecto.Association.HasThrough{through: through} ->
+            expand_assocs(schema, through ++ rest)
+
+          a ->
+            [a | expand_assocs(a.queryable, rest)]
+        end
+      end
+
+      defp build_preload_lateral_query(
+             [%Ecto.Association.ManyToMany{} = assoc],
+             query,
+             :join_first
+           ) do
+        [{owner_join_key, owner_key}, {related_join_key, related_key}] = assoc.join_keys
+
+        query
+        |> join(:inner, [x], y in ^assoc.join_through,
+          on: field(x, ^related_key) == field(y, ^related_join_key)
+        )
+        |> where([..., x], field(x, ^owner_join_key) == field(parent_as(:parent), ^owner_key))
+      end
+
+      defp build_preload_lateral_query(
+             [%Ecto.Association.ManyToMany{} = assoc],
+             query,
+             :join_last
+           ) do
+        [{owner_join_key, owner_key}, {related_join_key, related_key}] = assoc.join_keys
+
+        query
+        |> join(:inner, [..., x], y in ^assoc.join_through,
+          on: field(x, ^related_key) == field(y, ^related_join_key)
+        )
+        |> where([..., x], field(x, ^owner_join_key) == field(parent_as(:parent), ^owner_key))
+      end
+
+      defp build_preload_lateral_query([assoc], query, :join_first) do
+        query
+        |> where([x], field(x, ^assoc.related_key) == field(parent_as(:parent), ^assoc.owner_key))
+      end
+
+      defp build_preload_lateral_query([assoc], query, :join_last) do
+        query
+        |> where(
+          [..., x],
+          field(x, ^assoc.related_key) == field(parent_as(:parent), ^assoc.owner_key)
+        )
+      end
+
+      defp build_preload_lateral_query(
+             [%Ecto.Association.ManyToMany{} = assoc | rest],
+             query,
+             :join_first
+           ) do
+        [{owner_join_key, owner_key}, {related_join_key, related_key}] = assoc.join_keys
+
+        query =
+          query
+          |> join(:inner, [x], y in ^assoc.join_through,
+            on: field(x, ^related_key) == field(y, ^related_join_key)
+          )
+          |> join(:inner, [..., x], y in ^assoc.owner,
+            on: field(x, ^owner_join_key) == field(y, ^owner_key)
+          )
+
+        build_preload_lateral_query(rest, query, :join_last)
+      end
+
+      defp build_preload_lateral_query(
+             [%Ecto.Association.ManyToMany{} = assoc | rest],
+             query,
+             :join_last
+           ) do
+        [{owner_join_key, owner_key}, {related_join_key, related_key}] = assoc.join_keys
+
+        query =
+          query
+          |> join(:inner, [..., x], y in ^assoc.join_through,
+            on: field(x, ^related_key) == field(y, ^related_join_key)
+          )
+          |> join(:inner, [..., x], y in ^assoc.owner,
+            on: field(x, ^owner_join_key) == field(y, ^owner_key)
+          )
+
+        build_preload_lateral_query(rest, query, :join_last)
+      end
+
+      defp build_preload_lateral_query([assoc | rest], query, :join_first) do
+        query =
+          query
+          |> join(:inner, [x], y in ^assoc.owner,
+            on: field(x, ^assoc.related_key) == field(y, ^assoc.owner_key)
+          )
+
+        build_preload_lateral_query(rest, query, :join_last)
+      end
+
+      defp build_preload_lateral_query([assoc | rest], query, :join_last) do
+        query =
+          query
+          |> join(:inner, [..., x], y in ^assoc.owner,
+            on: field(x, ^assoc.related_key) == field(y, ^assoc.owner_key)
+          )
+
+        build_preload_lateral_query(rest, query, :join_last)
+      end
+
+      defp maybe_distinct(query, [%Ecto.Association.Has{}, %Ecto.Association.BelongsTo{} | _]) do
+        distinct(query, true)
+      end
+
+      defp maybe_distinct(query, [%Ecto.Association.ManyToMany{} | _]), do: distinct(query, true)
+      defp maybe_distinct(query, [_assoc | rest]), do: maybe_distinct(query, rest)
+      defp maybe_distinct(query, []), do: query
 
       defp emit_start_event(id, system_time, batch) do
         :telemetry.execute(
