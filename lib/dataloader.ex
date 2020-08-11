@@ -308,10 +308,11 @@ defmodule Dataloader do
   """
   @spec run_tasks(list(), fun(), keyword()) :: map()
   def run_tasks(items, fun, opts \\ []) do
-    task_opts = [
-      timeout: opts[:timeout] || @default_timeout,
-      on_timeout: :kill_task
-    ]
+    task_opts =
+      opts
+      |> Keyword.take([:timeout, :max_concurrency])
+      |> Keyword.put_new(:timeout, @default_timeout)
+      |> Keyword.put(:on_timeout, :kill_task)
 
     results =
       items
