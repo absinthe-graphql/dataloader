@@ -6,7 +6,19 @@ defmodule Dataloader.KV do
   must supply a function that accepts ids, and returns a map of values
   keyed by id.
 
-  ## Examples
+  ## Example
+
+  ```elixir
+  def datasource do
+    Dataloader.KV.new(&query/2, max_concurrency: 1)
+  end
+
+  def query(:comments, posts) do
+    Map.new(posts, fn %{id: post_id} = post ->
+      {post, Comments.find_by(post_id: post_id)}
+    end)
+  end
+  ```
 
   """
 
@@ -17,6 +29,21 @@ defmodule Dataloader.KV do
     results: %{}
   ]
 
+  @doc """
+  Create a KV Dataloader source.
+
+  Dataloader runs tasks concurrently using `Task.async_stream/3`. The
+  concurrency of a KV Dataloader source and the time tasks are allowed to run
+  can be controlled via options (see the "Options" section below).
+
+  ## Options
+
+    * `:max_concurrency` - sets the maximum number of tasks to run at the same
+      time. Defaults to twice the number of schedulers online (see
+      `System.schedulers_online/0`).
+    * `:timeout` - the maximum amount of time (in milliseconds) a task is
+      allowed to execute for. Defaults to `30000`.
+  """
   def new(load_function, opts \\ []) do
     max_concurrency = opts[:max_concurrency] || System.schedulers_online() * 2
 

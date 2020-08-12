@@ -191,9 +191,10 @@ defmodule Dataloader do
     max_source_timeout =
       dataloader.sources
       |> Enum.map(fn {_, source} -> Source.timeout(source) end)
-      |> Enum.max()
+      |> Enum.reject(&is_nil/1)
+      |> Enum.max(fn -> @default_timeout end)
 
-    (max_source_timeout || @default_timeout) + :timer.seconds(1)
+    max_source_timeout + :timer.seconds(1)
   end
 
   @spec get(t, source_name, any, any) :: any
