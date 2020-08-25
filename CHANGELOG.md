@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.8
+
+- Improvement: Telemetry integration ([#89](https://github.com/absinthe-graphql/dataloader/pull/89))
+- Improvement: limit support via lateral joins ([#93](https://github.com/absinthe-graphql/dataloader/pull/93))
+
 ## v1.0.7 - 2020-01-09
 
 - Improvement: Optimize out inspect calls when keys are not found  ([#84](https://github.com/absinthe-graphql/dataloader/pull/84))
