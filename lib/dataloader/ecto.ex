@@ -336,8 +336,11 @@ if Code.ensure_loaded?(Ecto) do
     end
 
     defp load_rows(col, inputs, queryable, query, repo, repo_opts) do
+      pk = queryable.__schema__(:primary_key)
+
       case query do
-        %Ecto.Query{limit: limit, offset: offset} when not is_nil(limit) or not is_nil(offset) ->
+        %Ecto.Query{limit: limit, offset: offset}
+        when pk != [col] and (not is_nil(limit) or not is_nil(offset)) ->
           load_rows_lateral(col, inputs, queryable, query, repo, repo_opts)
 
         _ ->
@@ -355,14 +358,22 @@ if Code.ensure_loaded?(Ecto) do
         |> select(^[col])
         |> distinct(true)
 
-      query =
+      inner_query =
         query
         |> where([q], field(q, ^col) == field(parent_as(:input), ^col))
+        |> exclude(:preload)
 
-      from(input in subquery(inputs_query), as: :input)
-      |> join(:inner_lateral, q in subquery(query))
-      |> select([_input, q], q)
-      |> repo.all(repo_opts)
+      results =
+        from(input in subquery(inputs_query), as: :input)
+        |> join(:inner_lateral, q in subquery(inner_query))
+        |> select([_input, q], q)
+        |> repo.all(repo_opts)
+
+      case query.preloads do
+        [] -> results
+        # Preloads can't be used in a subquery, using Repo.preload instead
+        preloads -> repo.preload(results, preloads, repo_opts)
+      end
     end
 
     defp group_results(results, col) do
@@ -677,11 +688,12 @@ if Code.ensure_loaded?(Ecto) do
         [pk] = schema.__schema__(:primary_key)
 
         assocs = expand_assocs(schema, [assoc])
+        query_excluding_preloads = exclude(query, :preload)
 
         inner_query =
           assocs
           |> Enum.reverse()
-          |> build_preload_lateral_query(query, :join_first)
+          |> build_preload_lateral_query(query_excluding_preloads, :join_first)
           |> maybe_distinct(assocs)
 
         results =
@@ -692,6 +704,18 @@ if Code.ensure_loaded?(Ecto) do
             select: {field(x, ^pk), y}
           )
           |> repo.all(repo_opts)
+
+        results =
+          case query.preloads do
+            [] ->
+              results
+
+            # Preloads can't be used in a subquery, using Repo.preload instead
+            preloads ->
+              {keys, vals} = Enum.unzip(results)
+              vals = repo.preload(vals, preloads, repo_opts)
+              Enum.zip(keys, vals)
+          end
 
         {keyed, default} =
           case schema.__schema__(:association, assoc) do
