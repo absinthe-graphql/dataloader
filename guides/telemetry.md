@@ -5,8 +5,8 @@ Dataloader uses `telemetry` to instrument its activity.
 Call `:telemetry.attach/4` or `:telemetry.attach_many/4` to attach your
 handler function to any of the following event names:
 
-- `[:dataloader, :batches, :run, :start]` when the dataloader processing starts
-- `[:dataloader, :batches, :run, :stop]` when the dataloader processing finishes
+- `[:dataloader, :source, :run, :start]` when the dataloader processing starts
+- `[:dataloader, :source, :run, :stop]` when the dataloader processing finishes
 - `[:dataloader, :source, :batch, :run, :start]` when the dataloader starts processing a single batch
 - `[:dataloader, :source, :batch, :run, :stop]` when the dataloader finishes processing a single batch
 
