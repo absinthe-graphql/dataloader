@@ -131,8 +131,8 @@ defmodule Dataloader.KV do
         {batch_key, source.load_function.(batch_key, ids)}
       end
 
-      results =
-        Dataloader.async_safely(Dataloader, :run_tasks, [source.batches, fun, source.opts])
+      # TODO: Need to pass in a reference to async here.
+      results = Dataloader.Async.tasks(Dataloader, source.batches, fun, source.opts)
 
       %{source | batches: %{}, results: merge_results(source.results, results)}
     end

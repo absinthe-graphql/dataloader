@@ -82,9 +82,9 @@ defmodule Dataloader do
 
   """
   defstruct sources: %{},
-            options: []
+            options: [],
+            task: Task
 
-  require Logger
   alias Dataloader.Source
 
   @type t :: %__MODULE__{
@@ -107,15 +107,19 @@ defmodule Dataloader do
   """
   @spec new([option]) :: t
   def new(opts \\ []) do
+    {task, opts} = Keyword.pop(opts, :task, Task)
+
     opts =
       [get_policy: @default_get_policy]
       |> Keyword.merge(opts)
 
-    %__MODULE__{options: opts}
+    %__MODULE__{options: opts, task: task}
   end
 
   @spec add_source(t, source_name, Dataloader.Source.t()) :: t
   def add_source(%{sources: sources} = loader, name, source) do
+    # TODO: Need to pass in a reference to dataloader.async here.
+
     sources = Map.put(sources, name, source)
     %{loader | sources: sources}
   end
@@ -142,7 +146,6 @@ defmodule Dataloader do
   @spec run(t) :: t
   def run(dataloader) do
     if pending_batches?(dataloader) do
-      fun = fn {name, source} -> {name, Source.run(source)} end
       id = :erlang.unique_integer()
       system_time = System.system_time()
       start_time_mono = System.monotonic_time()
@@ -150,11 +153,12 @@ defmodule Dataloader do
       emit_start_event(id, system_time, dataloader)
 
       sources =
-        async_safely(__MODULE__, :run_tasks, [
+        Dataloader.Async.tasks(
+          dataloader,
           dataloader.sources,
-          fun,
-          [timeout: dataloader_timeout(dataloader)]
-        ])
+          fn {name, source} -> {name, Source.run(source)} end,
+          timeout: timeout(dataloader)
+        )
         |> Enum.map(fn
           {_source, {:ok, {name, source}}} -> {name, source}
           {_source, {:error, reason}} -> {:error, reason}
@@ -187,7 +191,7 @@ defmodule Dataloader do
     )
   end
 
-  defp dataloader_timeout(dataloader) do
+  def timeout(dataloader) do
     max_source_timeout =
       dataloader.sources
       |> Enum.map(fn {_, source} -> Source.timeout(source) end)
@@ -251,83 +255,6 @@ defmodule Dataloader do
   end
 
   @doc """
-  This is a helper method to run a set of async tasks in a separate supervision
-  tree which:
-
-  1. Is run by a supervisor linked to the main process. This ensures any async
-     tasks will get killed if the main process is killed.
-  2. Spawns a separate task which traps exits for running the provided
-     function. This ensures we will always have some output, but are not
-     setting `:trap_exit` on the main process.
-
-  **NOTE**: The provided `fun` must accept a `Task.Supervisor` as its first
-  argument, as this function will prepend the relevant supervisor to `args`
-
-  See `run_task/3` for an example of a `fun` implementation, this will return
-  whatever that returns.
-  """
-  @spec async_safely(module(), atom(), list()) :: any()
-  def async_safely(mod, fun, args \\ []) do
-    # The intermediary task is spawned here so that the `:trap_exit` flag does
-    # not lead to rogue behaviour within the current process. This could happen
-    # if the current process is linked to something, and then that something
-    # dies in the middle of us loading stuff.
-    task =
-      Task.async(fn ->
-        # The purpose of `:trap_exit` here is so that we can ensure that any failures
-        # within the tasks do not kill the current process. We want to get results
-        # back no matter what.
-        Process.flag(:trap_exit, true)
-
-        apply(mod, fun, args)
-      end)
-
-    # The infinity is safe here because the internal
-    # tasks all have their own timeout.
-    Task.await(task, :infinity)
-  end
-
-  @doc ~S"""
-  This helper function will call `fun` on all `items` asynchronously, returning
-  a map of `:ok`/`:error` tuples, keyed off the `items`. For example:
-
-      iex> Dataloader.run_tasks([1,2,3], fn x -> x * x end, [])
-      %{
-        1 => {:ok, 1},
-        2 => {:ok, 4},
-        3 => {:ok, 9}
-      }
-
-  Similarly, for errors:
-
-      iex> Dataloader.run_tasks([1,2,3], fn _x -> Process.sleep(5) end, [timeout: 1])
-      %{
-        1 => {:error, :timeout},
-        2 => {:error, :timeout},
-        3 => {:error, :timeout}
-      }
-  """
-  @spec run_tasks(list(), fun(), keyword()) :: map()
-  def run_tasks(items, fun, opts \\ []) do
-    task_opts =
-      opts
-      |> Keyword.take([:timeout, :max_concurrency])
-      |> Keyword.put_new(:timeout, @default_timeout)
-      |> Keyword.put(:on_timeout, :kill_task)
-
-    results =
-      items
-      |> Task.async_stream(fun, task_opts)
-      |> Enum.map(fn
-        {:ok, result} -> {:ok, result}
-        {:exit, reason} -> {:error, reason}
-      end)
-
-    Enum.zip(items, results)
-    |> Map.new()
-  end
-
-  @doc """
   This used to be used by both the `Dataloader` module for running multiple
   source queries concurrently, and the `KV` and `Ecto` sources to actually run
   separate batch fetches (e.g. for `Posts` and `Users` at the same time).
@@ -341,6 +268,6 @@ defmodule Dataloader do
   @doc deprecated: "Use async_safely/3 instead"
   @spec pmap(list(), fun(), keyword()) :: map()
   def pmap(items, fun, opts \\ []) do
-    async_safely(__MODULE__, :run_tasks, [items, fun, opts])
+    Dataloader.Async.tasks(Dataloader, items, fun, opts)
   end
 end
