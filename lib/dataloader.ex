@@ -156,7 +156,7 @@ defmodule Dataloader do
         Dataloader.Async.tasks(
           dataloader,
           dataloader.sources,
-          fn {name, source} -> {name, Source.run(source)} end,
+          fn {name, source} -> {name, Source.run(source, dataloader)} end,
           timeout: timeout(dataloader)
         )
         |> Enum.map(fn

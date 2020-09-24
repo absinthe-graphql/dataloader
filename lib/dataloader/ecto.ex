@@ -381,16 +381,15 @@ if Code.ensure_loaded?(Ecto) do
     end
 
     defimpl Dataloader.Source do
-      def run(source) do
+      def run(source, dataloader) do
         options = [
           timeout: source.options[:timeout] || Dataloader.default_timeout(),
           on_timeout: :kill_task
         ]
 
-        # TODO: Need to pass in a reference to async here.
         results =
           Dataloader.Async.tasks(
-            Dataloader,
+            dataloader,
             source.batches,
             fn batch ->
               id = :erlang.unique_integer()

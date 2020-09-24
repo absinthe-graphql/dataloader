@@ -11,8 +11,8 @@ defprotocol Dataloader.Source do
   @doc """
   Run any batches queued up for this source.
   """
-  @spec run(t) :: t
-  def run(source)
+  @spec run(t, Dataloader.Task.t()) :: t
+  def run(source, dataloader)
 
   @doc """
   Fetch the result found under the given batch and item keys.
