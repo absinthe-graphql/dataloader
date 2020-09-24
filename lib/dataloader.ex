@@ -268,6 +268,6 @@ defmodule Dataloader do
   @doc deprecated: "Use async_safely/3 instead"
   @spec pmap(list(), fun(), keyword()) :: map()
   def pmap(items, fun, opts \\ []) do
-    Dataloader.Async.tasks(Dataloader, items, fun, opts)
+    Dataloader.Async.tasks(%Dataloader{}, items, fun, opts)
   end
 end

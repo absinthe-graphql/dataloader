@@ -1,17 +1,8 @@
 defprotocol Dataloader.Task do
-  @fallback_to_any true
-
   def await(x, task, timeout)
   def async(x, f)
   def async_stream(x, xs, f, opts)
   def timeout(x)
-end
-
-defimpl Dataloader.Task, for: Any do
-  def await(_, task, timeout), do: Task.await(task, timeout)
-  def async(_, f), do: Task.async(f)
-  def async_stream(_, xs, f, opts), do: Task.async_stream(xs, f, opts)
-  def timeout(_), do: Dataloader.default_timeout()
 end
 
 defimpl Dataloader.Task, for: Dataloader do
