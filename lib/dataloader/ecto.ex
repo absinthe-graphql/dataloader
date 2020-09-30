@@ -22,7 +22,7 @@ if Code.ensure_loaded?(Ecto) do
       |> Dataloader.load_many(Accounts, Organization, [4, 9])
       |> Dataloader.run
 
-    organizations = Dataloader.get(loader, Accounts, Organization, [4,9])
+    organizations = Dataloader.get_many(loader, Accounts, Organization, [4,9])
     ```
 
     Querying for associations. Here we look up the `:users` association on all
