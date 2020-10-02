@@ -1,168 +1,340 @@
 if Code.ensure_loaded?(Ecto) do
   defmodule Dataloader.Ecto do
     @moduledoc """
-    Ecto source for Dataloader
-
-    This defines a schema and an implementation of the `Dataloader.Source` protocol
-    for handling Ecto related batching.
-
-    A simple Ecto source only needs to know about your application's Repo.
+    This defines an implementation of the `Dataloader.Source` protocol for handling Ecto-related batching.
 
     ## Basic Usage
 
-    Querying by primary key (analogous to Ecto.Repo.get/3):
+    The basic usage of Dataloader for Ecto revolves around
+    - query-ables as batch-keys, and
+    - `{column, value}` tuples as item-keys.
+
+    ### Querying by Primary Key
+
+    Suppose we have a `:users` table with a corresponding `User` schema.
+    If we wanted the user with `id: 1` and we were using Ecto, we'd use `Ecto.Repo.get/3`.
+    With Dataloader, we use a multi-step process.
+
+    Assuming we've already defined an Ecto source and added it to a loader like so:
 
     ```elixir
-    source = Dataloader.Ecto.new(MyApp.Repo)
+    # Ecto source
+    ecto_source = Dataloader.Ecto.new(MyApp.Repo)
 
+    # Loader with `ecto_source` named `:Accounts`
     loader =
-      Dataloader.new
-      |> Dataloader.add_source(Accounts, source)
-      |> Dataloader.load(Accounts, User, 1)
-      |> Dataloader.load_many(Accounts, Organization, [4, 9])
-      |> Dataloader.run
-
-    organizations = Dataloader.get(loader, Accounts, Organization, [4,9])
+      Dataloader.new()
+      |> Dataloader.add_source(Accounts, ecto_source)
     ```
 
-    Querying for associations. Here we look up the `:users` association on all
-    the organizations, and the `:organization` for a single user.
+    We'd fetch the user with `id: 1` using the `User` schema as our batch-key and `1` as our item-key:
 
     ```elixir
-    loader =
+    user_1 =
       loader
-      |> Dataloader.load(Accounts, :organization, user)
-      |> Dataloader.load_many(Accounts, :users, organizations)
-      |> Dataloader.run
+      |> Dataloader.load(Accounts, User, 1)
+      |> Dataloader.run()
+      |> Dataloader.get(Accounts, User, 1)
     ```
 
-    Querying by a column other than the primary key:
+    Note how we used a `Dataloader.load/4` and `Dataloader.get/4` pair.
+    That's because our item-key `1` was singular.
+
+    If instead we wanted multiple item-keys, e.g. users corresponding to multiple IDs, we'd use a `Dataloader.load_many/4` and `Dataloader.get_many/4` pair:
 
     ```elixir
-    loader =
+    [user_4, user_9] =
+      loader
+      |> Dataloader.load_many(Accounts, User, [4, 9])
+      |> Dataloader.run()
+      |> Dataloader.get_many(Accounts, User, [4, 9])
+    ```
+
+    We can also combine `Dataloader.load/4`, `Dataloader.load_many/4`, `Dataloader.get/4`, and `Dataloader.get_many/4`:
+
+    ```elixir
+    loader_with_users_1_4_and_9 =
+      loader
+      |> Dataloader.load(Accounts, User, 1)
+      |> Dataloader.load_many(Accounts, User, [4, 9])
+      |> Dataloader.run()
+
+    [user_1, user_9] =
+      loader_with_users_1_4_and_9
+      |> Dataloader.get_many(Accounts, User, [1, 9])
+
+    user_4 =
+      loader_with_users_1_4_and_9
+      |> Dataloader.get(Accounts, User, 4)
+    ```
+
+    ### Querying by (Non-Primary Key) Column
+
+    When getting a user by primary key (`:id`), we supplied the `:id` itself: `1`.
+    Dataloader interpreted that as asking for the column whose `:id` was `1`.
+    We can ask for records by other columns as well.
+
+    Suppose our `:users` table has a `:name` column and our `User` schema has a `:name` field.
+    If we want the user with the name `"admin"`, we can do:
+
+    ```elixir
+    user_named_admin =
       loader
       |> Dataloader.load(Accounts, {:one, User}, name: "admin")
-      |> Dataloader.run
+      |> Dataloader.run()
+      |> Dataloader.get(Accounts, {:one, User}, name: "admin")
     ```
 
-    Here we pass a keyword list of length one. It is only possible to
-    query by one column here; for more complex queries, see "filtering" below.
+    There are two things to note here:
 
-    Notice here that we need to also specify the cardinality in the batch_key
-    (`:many` or `:one`), which will decide whether to return a list or a single
-    value (or nil). This is because the column may not be a key and there may be
-    multiple matching records. Note also that even if we are returning `:many` values
-    here  from multiple matching records, this is still a call to `Dataloader.load/4`
-    rather than `Dataloader.load_many/4` because there is only one val specified.
+    1.  We passed our column constraint as an item-key: `[name: "admin"]`.
+        Importantly, it's only possible to query by one column at a time in this way.
+        So the Keyword list item-key may only have length one.
+        For more complex queries, see "Advanced Usage" below.
 
-    ## Filtering / Ordering
+    2.  We specified the _cardinality_ of the expected result via: `{:one, User}`.
+        Cardinality determines whether Dataloader should return a single value or a list of values.
+        Cardinality is required because unlike with database keys, multiple records may match a column constraint.
+        The `{:one, _}` / `{:many, _}` distinction is analogous to using `Ecto.Repo.one/1` or `Ecto.Repo.all/1`, respectively.
 
-    `Dataloader.Ecto.new/2` can receive a 2 arity function that can be used to apply
-    broad ordering and filtering rules, as well as handle parameters
+    If instead we expected multiple users to match `[name: "admin"]`, we'd use `{:many, User}`:
 
     ```elixir
-    source = Dataloader.Ecto.new(MyApp.Repo, query: &Accounts.query/2)
+    user_named_admin =
+      loader
+      |> Dataloader.load(Accounts, {:many, User}, name: "admin")
+      |> Dataloader.run()
+      |> Dataloader.get(Accounts, {:many, User}, name: "admin")
+    ```
+
+    Note also that for both `{:one, User}` and `{:many, User}`, we used `Dataloader.load/4`, not `Dataloader.load_many/4`.
+    This is because even if we expect Dataloader to return multiple values, we're still only passing a single item-key: `{:name, "admin"}`.
+
+    Remember:
+    - `Dataloader.load/4` vs. `Dataloader.load_many/4` refers to the number of _item-keys_.
+    - `{:one, _}` vs. `{:many, _}` refers to the number of _expected return values_.
+
+    ### Querying by Association
+
+    So far when querying by column, our item-keys were `{column, value}` tuples and our batch-keys were either schema modules or `{cardinality, module}` tuples.
+    We can also use schema structs as our item-keys and their associations as our batch-keys.
+
+    Suppose in our schema, all users belong to an organization.
+    That is, the `:users` table has an `organization_id` column that references an `:organizations` table with a corresponding `Organization` schema.
+
+    If we want to lookup the organization for `user_1`, we can do that by providing the `user_1` struct as the item-key and the `:organization` association as the batch-key.
+    Note that this requires that our `User` schema has a `belongs_to(:organization)`.
+
+    ```elixir
+    organization_for_user_1 =
+      loader
+      |> Dataloader.load(Accounts, :organization, user_1)
+      |> Dataloader.run()
+      |> Dataloader.get(Accounts, :organization, user_1)
+    ```
+
+    We could also do the reverse.
+    We look up the `:users` association on `organization_for_user_1`.
+    Note that this requires that in our Ecto schema, `Organization` has a `has_many(:users)`.
+
+    ```elixir
+    all_users_in_user_1s_organization =
+      loader
+      |> Dataloader.load_many(Accounts, :users, organization_for_user_1)
+      |> Dataloader.run()
+      |> Dataloader.get_many(Accounts, :users, organization_for_user_1)
+    ```
+
+    We can even load all the users for multiple organizations.
+
+    ```elixir
+    orgs_100_and_101 =
+      loader
+      |> Dataloader.load_many(Accounts, :organizations, [100, 101])
+      |> Dataloader.run()
+      |> Dataloader.get_many(Accounts, :organizations, [100, 101])
+
+    [users_in_org_100, users_in_org_101] =
+      loader
+      |> Dataloader.load_many(Accounts, :users, orgs_100_and_101)
+      |> Dataloader.run()
+      |> Dataloader.get_many(Accounts, :users, orgs_100_and_101)
+    ```
+
+    ## Advanced Usage
+
+    So far, we've seen how we can batch on
+
+    - primary key columns,
+    - non-primary key columns (with cardinality), and
+    - associations.
+
+    Unfortunately, these options alone are often insufficient.
+    What if we wanted to order the results by a particular column?
+    Or join to another table?
+
+    As we'll see, we can gain greater control over what queries are run by providing callbacks to `Dataloader.Ecto.new/2`.
+
+    ### Filtering & Ordering with the `:query` Option
+
+    `Dataloader.load/4` and `Dataloader.load_many/4` allow generic parameters to be part of the batch-key:
+
+    ```elixir
+    loader
+    |> Dataloader.load(source, {schema_module_or_association, my_parameters}, item_key)
+    ```
+
+    When present, these parameters are passed to a 2-arity callback function.
+    You can provide this callback when you create a source using `Dataloader.Ecto.new/2` via a `:query` option:
+
+    ```elixir
+    source = Dataloader.Ecto.new(MyApp.Repo,
+      query: &my_query_callback/2
+    )
 
     loader =
-      Dataloader.new
+      Dataloader.new()
       |> Dataloader.add_source(Accounts, source)
     ```
 
-    When we call `Dataloader.load/4` we can pass in a tuple as the batch key with a keyword list
-    of parameters in addition to the queryable or assoc_field
+    As an example, suppose we want to allow users to be ordered by any column.
+    We might design for an optional `:order_by` parameter in our batch-keys:
 
     ```elixir
-    # with a queryable
     loader
-    |> Dataloader.load(Accounts, {User, order: :name}, 1)
-
-    # or an association
-    loader
-    |> Dataloader.load_many(Accounts, {:users, order: :name}, organizations)
-
-    # this is still supported
-    loader
-    |> Dataloader.load(Accounts, User, 1)
-
-    # as is this
-    loader
-    |> Dataloader.load(:accounts, :user, organization)
+    |> Dataloader.load(Accounts, {User, %{order_by: :name}}, 1)
+    #                                   ^----------------^
+    #                                   parameters
     ```
 
-    In all cases the `Accounts.query` function would be:
+    Then we'd have our callback look for that option when the queryable was the `User` schema:
+
     ```elixir
-    def query(User, params) do
-      field = params[:order] || :id
-      from u in User, order_by: [asc: field(u, ^field)]
+    def my_query_callback(User, %{order_by: order_by}) do
+      from u in User, order_by: [asc: field(u, ^order_by)]
     end
-    def query(queryable, _) do
+
+    def my_query_callback(queryable, _) do
       queryable
     end
     ```
 
-    If we query something that ends up using the `User` schema, whether directly
-    or via association, the `query/2` function will match on the first clause and
-    we can handle the params. If no params are supplied, the params arg defaults
-    to `source.default_params` which itself defaults to `%{}`.
+    If we query something that ends up using the `User` schema, whether directly or via association, `my_query_callback/2` will match on the first clause and we can handle the params.
+    Otherwise, none of our parameters were passed in and the queryable should remain as is.
+    So it's important to give the callback a default clause!
 
-    `default_params` is an extremely useful place to store values like the current user:
+    ### Default Query Parameters with the `:default_params` Option
+
+    You can also provide default parameters via a `:default_params` option.
+
+    For example, it's common for users to not be allowed to access an organization if they're not a member.
+    In this use case, `:default_params` is an extremely useful place to store the current user:
 
     ```elixir
-    source = Dataloader.Ecto.new(MyApp.Repo, [
-      query: &Accounts.query/2,
+    # source
+    source = Dataloader.Ecto.new(MyApp.Repo,
+      query: &query/2,
       default_params: %{current_user: current_user},
-    ])
+    )
 
-    loader =
-      Dataloader.new
-      |> Dataloader.add_source(Accounts, source)
-      |> Dataloader.load_many(Accounts, Organization, ids)
-      |> Dataloader.run
-
-    # the query function
+    # callback
     def query(Organization, %{current_user: user}) do
       from o in Organization,
         join: m in assoc(o, :memberships),
         where: m.user_id == ^user.id
     end
+
     def query(queryable, _) do
       queryable
     end
     ```
 
-    In our query function we are pattern matching on the current user to make sure
-    that we are only able to lookup data in organizations that the user actually
-    has a membership in. Additional options you specify IE `{Organization, %{order: :asc}}`
-    are merged into the default.
+    Now for every query attempting to access the `Organization` schema, regardless of if a `:current_user` option is passed in, `Organization` is scoped to the `:current_user`.
+    So in the following query:
 
-    ## Custom batch queries
-
-    There are cases where you want to run the batch function yourself. To do this
-    we can add a custom `run_batch/5` callback to our source.
-
-    The `run_batch/5` function is executed with the query returned from the `query/2`
-    function.
-
-    For example, we want to get the post count for a set of users.
-
-    First we add a custom `run_batch/5` function.
-
+    ```elixir
+    organizations_scoped_to_current_user =
+      Dataloader.new()
+      |> Dataloader.add_source(Accounts, source)
+      |> Dataloader.load_many(Accounts, Organization, ids)
+      |> Dataloader.run()
+      |> Dataloader.get_many(Accounts, Organization, ids)
     ```
-    def run_batch(_, query, :post_count, users, repo_opts) do
-      user_ids = Enum.map(users, & &1.id)
-      default_count = 0
 
-      result =
+    The organizations in `organizations_scoped_to_current_user` only contain those from `ids` where the current user is a member.
+    The rest are discarded even though the query itself didn't reference `:current_user`.
+
+    Note that additional options you specify in the batch-key are merged into, and will override, the default.
+
+    ### Custom Batch Queries with the `:run_batch` Option
+
+    The Dataloader flow is generally:
+
+    ```elixir
+    result =
+      Dataloader.new()
+      |> Dataloader.add_source(source_name, source)
+      |> Dataloader.load(source_name, batch_key, item_key)
+      |> Dataloader.run() # <-- no control over this step yet
+      |> Dataloader.get(source_name, batch_key, item_key)
+    ```
+
+    With this flow, we've been able to achieve our goals by running basic queries, essentially:
+
+    ```elixir
+    from(q in Queryable, where: field(q, ^col) == ^val)
+    ```
+
+    maybe with some extra `:where`s or an `:order_by` tacked on by a `:query` callback.
+    We've not yet built more complicated queries nor run the queries ourself.
+    If we require this level of control, we can do both these things with the `:run_batch` option to `Dataloader.Ecto.new/2`.
+
+    For example, suppose our users make posts, and posts have categories.
+    That is, we have a `"posts"` table with `user_id` and `category` columns.
+    Our `Post` schema has a `belongs_to(:user)` and `field(:category)`.
+
+    If we want all users who've made a post in a certain category, how would we do this?
+    We can't do it by any combination of `:where` clauses on the `"users"` table because the category information is in the `"posts"` table.
+    Similarly, querying the `"posts"` table won't work because it won't return users, only posts with a user's ID.
+    We need to join.
+
+    Unfortunately, there's no mechanism in the basic usage to join to another table.
+    We could feasibly add a join in a `:query` callback, but there are downsides to this approach.
+    See "Using `:query` vs. `:run_batch`" for more details.
+
+    So, we're left with using `:run_batch`.
+    Similar to how we would achieve custom results with `:query`, we will design for a custom parameter -- `:post_category` -- which is not found under the `User` schema.
+    This time, however, we include the parameter in the _item-key_.
+
+    Suppose we wanted all users who've posted under the `"Foo"` category.
+    First, we would load the `{:post_category, "Foo"}` item-key under the `{:many, User}` batch-key (since we want _all_ the users who've posted in category `"Foo"`).
+
+    ```elixir
+    loader
+    |> Dataloader.load(Source, {:many, User}, post_category: "Foo")
+    ```
+
+    As `:post_category` is not present under the `User` schema, Dataloader will try to match on it when it runs the batch.
+    So, we must provide a `:run_batch` callback with a clause that includes `:post_category` in the 3rd argument:
+
+    ```elixir
+    def run_batch(User, query, :post_category, categories, repo_opts) do
+      query =
+        from(u in query,
+          join: p in assoc(u, :posts),
+          where: p.category in ^categories,
+          select: {p.category, u}
+        )
+
+      results =
         query
-        |> where([p], p.user_id in ^user_ids)
-        |> group_by([p], p.user_id)
-        |> select([p], {p.user_id, count("*")})
         |> Repo.all(repo_opts)
-        |> Map.new()
+        |> Enum.group_by(
+          fn {category, _} -> category end,
+          fn {_, user} -> user end
+        )
 
-      for %{id: id} <- users do
-        [Map.get(result, id, default_count)]
-      end
+      for category <- categories, do: Map.get(results, category, [])
     end
 
     # Fallback to original run_batch
@@ -170,27 +342,59 @@ if Code.ensure_loaded?(Ecto) do
       Dataloader.Ecto.run_batch(Repo, queryable, query, col, inputs, repo_opts)
     end
     ```
-    This function is suplied with a list of users, does a query and will return
-    the post count for each of user. If the user id is not found in the resultset,
-    because the user has no posts, we return a post count of 0.
 
-    Now we need to call `run_batch/5` from dataloader. First we add a few posts
-    to the database.
+    There are several things to note here:
 
-    After that, the custom `run_batch/5` function is provided to the Dataloader
-    source. Now, we can load the post count for several users. When the dataloader
-    runs it will call the custom `run_batch/5` and we can retrieve the posts counts
-    for each individual user.
+    - `run_batch/5` was passed a Queryable (`User`) and a query (`query`).
+      While we could have done `from(u in User, ...)`, we instead did `from(u in query, ...)`.
+      That's because `query` may have passed through a `:query` callback and been altered.
+      If we queried `User` directly, we would have lost any changes the `:query` callback may have added.
+      (See example below.)
 
-    ```
-    [user1, user2] = [%User{id: 1}, %User{id: 2}]
+    - `run_batch/5` was not passed a singular category `"Foo"`, but a list of categories.
+      `run_batch/5` is always passed a list of inputs.
 
-    rows = [
-      %{user_id: user1.id, title: "foo", published: true},
-      %{user_id: user1.id, title: "baz", published: false}
+    - Similarly, `run_batch/5` returned a list of _list of_ users.
+      `run_batch/5` must always return a list with an order analogous to the order of `inputs` (`["Foo"]` in our example).
+      If we'd had `inputs = ["Foo", "Bar"]`, we'd return `[foo_users, bar_users]`.
+      If we'd had `inputs = ["Bar", "Foo"]`, we'd return `[bar_users, foo_users]`.
+      This is why we see `[]` as the default in `Map.get(results, category, [])`.
+      If no users were found for a category, we'd return an empty list for that category.
+
+    - Just like with `:query`, we needed a default clause.
+
+    #### `:run_batch` with `:query`
+
+    Since `:run_batch` operates on the item-keys and `:query` operates on the batch-keys, they can operate completely independently of each other.
+
+    To illustrate, suppose our users' posts can also be published.
+    That is, the `"posts"` table has a boolean `published` column.
+    Let's add some example data:
+
+    ```elixir
+    [user_1, user_2] = [%User{id: 1}, %User{id: 2}]
+
+    posts = [
+      %{user_id: user_1.id, category: "Foo", published: true},
+      %{user_id: user_2.id, category: "Foo", published: false},
+      %{user_id: user_2.id, category: "Bar", published: true}
     ]
 
-    _ = Repo.insert_all(Post, rows)
+    _ = Repo.insert_all(Post, posts)
+    ```
+
+    Assuming our `:run_batch` callback from above is still defined, let's also add a `:query` callback:
+
+    ```elixir
+    def query(Post, %{published: published}) do
+      from(p in Post,
+        where: p.published == ^published
+      )
+    end
+
+    def query(queryable, _) do
+      queryable
+    end
 
     source =
       Dataloader.Ecto.new(
@@ -201,54 +405,78 @@ if Code.ensure_loaded?(Ecto) do
 
     loader =
       Dataloader.new()
-      |> Dataloader.add_source(Posts, source)
-
-    loader =
-      loader
-      |> Dataloader.load(Posts, {:one, Post}, post_count: user1)
-      |> Dataloader.load(Posts, {:one, Post}, post_count: user2)
-      |> Dataloader.run()
-
-    # Returns 2
-    Dataloader.get(loader, Posts, {:one, Post}, post_count: user1)
-    # Returns 0
-    Dataloader.get(loader, Posts, {:one, Post}, post_count: user2)
-
+      |> Dataloader.add_source(Accounts, source)
     ```
 
-    Additional params for the `query/2` function can be passed to the load functions
-    with a 3-tuple.
+    Now we can use `:query` and `:run_batch` together:
 
-    For example, to limit the above example to only return published we can add a query
-    function to filter the published posts:
-
-    ```
-    def query(Post, %{published: published}) do
-      from p in Post,
-      where: p.published == ^published
-    end
-
-    def query(queryable, _) do
-      queryable
-    end
-    ```
-
-    And we can return the published posts with a 3-tuple on the loader:
-
-    ```
+    ```elixir
     loader =
     loader
-    |> Dataloader.load(Posts, {:one, Post}, post_count: user1)
-    |> Dataloader.load(Posts, {:one, Post, %{published: true}}, post_count: user1)
+    |> Dataloader.load(Accounts, {:many, User}, post_category: "Foo")
+    |> Dataloader.load(Accounts, {:many, User, %{published: true}}, post_category: "Foo")
     |> Dataloader.run()
 
-    # Returns 2
-    Dataloader.get(loader, Posts, {:one, Post}, post_count: user1)
-    # Returns 1
-    Dataloader.get(loader, Posts, {:one, Post, %{published: true}}, post_count: user1)
+    # Returns user_1 and user_2
+    Dataloader.get(loader, Accounts, {:many, User}, post_category: "Foo")
+    # Returns user_2 only
+    Dataloader.get(loader, Accounts, {:many, User}, post_category: "Bar")
+    # Returns user_1 and user_2
+    Dataloader.get(loader, Accounts, {:many, User, %{published: true}})
+    # Returns user_1 only
+    Dataloader.get(loader, Accounts, {:many, User, %{published: true}}, post_category: "Foo")
     ```
 
+    ### [TODO] Using `:query` vs. `:run_batch`
 
+    TODO
+
+    ## [WIP] Quick References
+
+    ### Batch-Keys
+
+    Batch-keys are always 3-tuples.
+    In some cases, you can provide a subset of the tuple and Dataloader will infer the rest.
+
+    - **General Form**
+      - `{cardinality, schema_module_or_association, parameters}`
+        - `cardinality`
+          - `:one` or `:many`
+          - determines the expected number of returned records
+        - `schema_module_or_association`
+          - Schema module (e.g. `User`) or
+          - Association (e.g. `:organization`)
+        - `parameters`
+          - map of parameters (e.g. `%{published: true}`)
+          - passed to `:query` callback
+
+    - **Examples**
+      Batch-Key | Resolves To | Valid When
+      :-- | :-- | :--
+      `{:many, User, %{deleted: false}}` | `{:many, User, %{deleted: false}}` | Always
+      `{:many, User}` | `{:many, User, %{}}` | parameters = `%{}`
+      `{:one, User}` | `{:one, User, %{}}` | parameters = `%{}`
+      `{User, %{deleted: false}}` | `{:many, User, %{deleted: false}}` | Always
+      `{User, %{deleted: false}}` | `{:one, User, %{deleted: false}}` | item-key is a primary key
+      `User` | `{:one, User, %{}}` | item-key is a primary key and parameters = `%{}`
+
+    ### Item-Keys
+
+    Item-keys are always a list with a single, 2-tuple element.
+
+    - **General Form**
+      - `{column_or_parameter, value}`
+        - `column_or_parameter`
+          - Column (e.g. `:name`)
+          - Parameter (e.g. `:post_category`)
+        - `value`
+          - Value (e.g. `"Alfred"`)
+
+    - **Examples**
+      Item-Key | Resolves To | Valid When
+      :-- | :-- | :--
+      `[{:name, "Alfred"}]` | `[{:name, "Alfred"}]` | Always
+      `1` | `[{:id, 1}]` | Always (assumes `:id` is a primary key)
     """
 
     defstruct [
