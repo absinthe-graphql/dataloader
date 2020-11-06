@@ -684,8 +684,11 @@ if Code.ensure_loaded?(Ecto) do
 
       def preload_lateral([], _assoc, _query, _opts), do: []
 
-      def preload_lateral([%schema{} | _] = structs, assoc, query, repo, repo_opts) do
+      def preload_lateral([%schema{} = struct | _] = structs, assoc, query, repo, repo_opts) do
         [pk] = schema.__schema__(:primary_key)
+
+        # Carry the database prefix across from already-loaded records if not already set
+        repo_opts = Keyword.put_new(repo_opts, :prefix, struct.__meta__.prefix)
 
         assocs = expand_assocs(schema, [assoc])
         query_excluding_preloads = exclude(query, :preload)
