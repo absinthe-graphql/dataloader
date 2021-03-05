@@ -26,5 +26,15 @@ defmodule Absinthe.Ecto.TestRepo.Migrations.MigrateAll do
       add :leaderboard_id, references(:leaderboards), null: false
       add :post_id, references(:posts), null: false
     end
+
+    create table(:pictures) do
+      add :url, :string, null: false
+    end
+
+    create table(:user_pictures) do
+      add :status, :string, default: "unpublished"
+      add :user_id, references(:users), null: false
+      add :picture_id, references(:pictures), null: false
+    end
   end
 end
