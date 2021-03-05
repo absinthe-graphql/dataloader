@@ -1,6 +1,7 @@
 defmodule Dataloader.Mixfile do
   use Mix.Project
 
+  @source_url "https://github.com/absinthe-graphql/dataloader"
   @version "1.0.8"
 
   def project do
@@ -12,16 +13,8 @@ defmodule Dataloader.Mixfile do
       elixirc_paths: elixirc_paths(Mix.env()),
       package: package(),
       aliases: aliases(),
-      source_url: "https://github.com/absinthe-graphql/dataloader",
-      docs: [
-        main: "Dataloader",
-        source_ref: "v#{@version}",
-        extras: [
-          "CHANGELOG.md",
-          "guides/telemetry.md"
-        ]
-      ],
-      deps: deps()
+      deps: deps(),
+      docs: docs()
     ]
   end
 
@@ -32,8 +25,8 @@ defmodule Dataloader.Mixfile do
       maintainers: ["Ben Wilson"],
       licenses: ["MIT"],
       links: %{
-        Changelog: "https://github.com/absinthe-graphql/dataloader/blob/master/CHANGELOG.md",
-        GitHub: "https://github.com/absinthe-graphql/dataloader"
+        Changelog: "https://hexdocs/dataloader/changelog.html",
+        GitHub: @source_url
       }
     ]
   end
@@ -41,7 +34,6 @@ defmodule Dataloader.Mixfile do
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
 
-  # Run "mix help compile.app" to learn about applications.
   def application do
     [
       extra_applications: [:logger] ++ test_apps(Mix.env())
@@ -59,17 +51,27 @@ defmodule Dataloader.Mixfile do
 
   defp test_apps(_), do: []
 
-  # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ecto, ">= 3.4.3 and < 4.0.0", optional: true},
       {:telemetry, "~> 0.4"},
+      {:ecto, ">= 3.4.3 and < 4.0.0", optional: true},
       {:ecto_sql, "~> 3.0", optional: true, only: :test},
-      {:postgrex, "~> 0.14", only: :test},
-      {:dialyxir, "~> 0.5", only: :dev},
-      {:ex_doc, ">= 0.0.0", only: [:dev]}
-      # {:dep_from_hexpm, "~> 0.3.0"},
-      # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"},
+      {:postgrex, "~> 0.14", only: :test, runtime: false},
+      {:dialyxir, "~> 0.5", only: :dev, runtime: false},
+      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
+    ]
+  end
+
+  def docs do
+    [
+      extras: [
+        "CHANGELOG.md",
+        "README.md",
+        "guides/telemetry.md"
+      ],
+      main: "readme",
+      source_url: @source_url,
+      source_ref: "v#{@version}"
     ]
   end
 
