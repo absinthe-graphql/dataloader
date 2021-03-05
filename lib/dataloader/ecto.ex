@@ -752,11 +752,21 @@ if Code.ensure_loaded?(Ecto) do
            ) do
         [{owner_join_key, owner_key}, {related_join_key, related_key}] = assoc.join_keys
 
-        query
-        |> join(:inner, [x], y in ^assoc.join_through,
-          on: field(x, ^related_key) == field(y, ^related_join_key)
-        )
-        |> where([..., x], field(x, ^owner_join_key) == field(parent_as(:parent), ^owner_key))
+        join =
+          query
+          |> join(:inner, [x], y in ^assoc.join_through,
+            on: field(x, ^related_key) == field(y, ^related_join_key)
+          )
+          |> where([..., x], field(x, ^owner_join_key) == field(parent_as(:parent), ^owner_key))
+
+        case assoc.join_where do
+          [{where_field, where_value}] ->
+            join
+            |> where([..., x], field(x, ^where_field) == ^where_value)
+
+          _otherwise ->
+            join
+        end
       end
 
       defp build_preload_lateral_query(
