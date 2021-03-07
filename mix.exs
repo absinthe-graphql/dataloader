@@ -25,7 +25,7 @@ defmodule Dataloader.Mixfile do
       maintainers: ["Ben Wilson"],
       licenses: ["MIT"],
       links: %{
-        Changelog: "https://hexdocs/dataloader/changelog.html",
+        Changelog: "https://hexdocs.pm/dataloader/changelog.html",
         GitHub: @source_url
       }
     ]
