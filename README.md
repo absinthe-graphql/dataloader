@@ -1,12 +1,19 @@
 # Dataloader
 
+[![Build Status](https://img.shields.io/travis/absinthe-graphql/dataloader.svg?style=flat-square)](https://travis-ci.org/absinthe-graphql/dataloader)
+[![Version](https://img.shields.io/hexpm/v/dataloader.svg)](https://hex.pm/packages/dataloader)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/dataloader/)
+[![Download](https://img.shields.io/hexpm/dt/dataloader.svg)](https://hex.pm/packages/dataloader)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Last Updated](https://img.shields.io/github/last-commit/absinthe-graphql/dataloader.svg)](https://github.com/absinthe-graphql/dataloader/commits/master)
+
 Dataloader provides an easy way efficiently load data in batches. It's inspired
 by https://github.com/facebook/dataloader, although it makes some small API
 changes to better suit Elixir use cases.
 
 ## Installation
 
-The package can be installed by adding [`dataloader`](https://hex.pm/packages/dataloader) to your list of dependencies in `mix.exs`:
+The package can be installed by adding [`:dataloader`](https://hex.pm/packages/dataloader) to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
@@ -21,7 +28,7 @@ end
 Central to Dataloader is the idea of a source. A single Dataloader struct can
 have many different sources, which represent different ways to load data.
 
-Here's an example of a data loader using an ecto source, and then loading some
+Here's an example of a data loader using an Ecto source, and then loading some
 organization data.
 
 ```elixir
