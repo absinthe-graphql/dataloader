@@ -28,11 +28,12 @@ defmodule Absinthe.Ecto.TestRepo.Migrations.MigrateAll do
     end
 
     create table(:pictures) do
+      add :status, :string
       add :url, :string, null: false
     end
 
     create table(:user_pictures) do
-      add :status, :string, default: "unpublished"
+      add :status, :string
       add :user_id, references(:users), null: false
       add :picture_id, references(:pictures), null: false
     end

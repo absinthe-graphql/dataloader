@@ -759,16 +759,14 @@ if Code.ensure_loaded?(Ecto) do
           )
           |> where([..., x], field(x, ^owner_join_key) == field(parent_as(:parent), ^owner_key))
 
-        case assoc.join_where do
-          [{where_field, where_value}] ->
-            join
-            |> where([..., x], field(x, ^where_field) == ^where_value)
+        binds = Ecto.Query.Builder.count_binds(join)
 
-          _otherwise ->
-            join
-        end
+        join
+        |> Ecto.Association.combine_joins_query(assoc.where, 0)
+        |> Ecto.Association.combine_joins_query(assoc.join_where, binds - 1)
       end
 
+      # Fix me: never called because the functions that call this are never called
       defp build_preload_lateral_query(
              [%Ecto.Association.ManyToMany{} = assoc],
              query,
@@ -796,6 +794,7 @@ if Code.ensure_loaded?(Ecto) do
         )
       end
 
+      # Fix me: never called because assoc is always length == 1
       defp build_preload_lateral_query(
              [%Ecto.Association.ManyToMany{} = assoc | rest],
              query,
@@ -815,6 +814,7 @@ if Code.ensure_loaded?(Ecto) do
         build_preload_lateral_query(rest, query, :join_last)
       end
 
+      # Fix me: never called because assoc is always length == 1
       defp build_preload_lateral_query(
              [%Ecto.Association.ManyToMany{} = assoc | rest],
              query,
