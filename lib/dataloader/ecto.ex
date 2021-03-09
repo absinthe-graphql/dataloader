@@ -762,7 +762,7 @@ if Code.ensure_loaded?(Ecto) do
         binds_count = Ecto.Query.Builder.count_binds(join_query)
 
         join_query
-        |> Ecto.Association.combine_joins_query(assoc.where, 0)
+        |> Ecto.Association.combine_joins_query(assoc.where, binds_count - 2)
         |> Ecto.Association.combine_joins_query(assoc.join_where, binds_count - 1)
       end
 
