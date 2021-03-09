@@ -174,5 +174,32 @@ defmodule Dataloader.Ecto.HasManyThroughManyToManyTest do
 
       assert [like1, like2] == Dataloader.get(loader, Test, args, leaderboard)
     end
+
+    test "load has_many through many_to_many in second position with third assoc - with where on target schema and join_where on assoc schema",
+         %{loader: loader} do
+      leaderboard = %Dataloader.Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
+      user1 = %User{username: "Ben Wilson", leaderboard_id: leaderboard.id} |> Repo.insert!()
+
+      pic1 = %Picture{url: "https://example.com/1.jpg"} |> Repo.insert!()
+      pic2 = %Picture{url: "https://example.com/2.jpg", status: "published"} |> Repo.insert!()
+      pic3 = %Picture{url: "https://example.com/3.jpg", status: "published"} |> Repo.insert!()
+
+      %UserPicture{user_id: user1.id, picture_id: pic1.id} |> Repo.insert!()
+      %UserPicture{user_id: user1.id, picture_id: pic2.id} |> Repo.insert!()
+      %UserPicture{user_id: user1.id, picture_id: pic3.id, status: "published"} |> Repo.insert!()
+
+      _like1 = %Like{user_id: user1.id, picture_id: pic1.id} |> Repo.insert!()
+      _like2 = %Like{user_id: user1.id, picture_id: pic2.id} |> Repo.insert!()
+      like3 = %Like{user_id: user1.id, picture_id: pic3.id} |> Repo.insert!()
+
+      args = {:user_pictures_published_likes, %{limit: 10}}
+
+      loader =
+        loader
+        |> Dataloader.load(Test, args, leaderboard)
+        |> Dataloader.run()
+
+      assert [like3] == Dataloader.get(loader, Test, args, leaderboard)
+    end
   end
 end
