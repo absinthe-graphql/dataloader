@@ -33,6 +33,12 @@ defmodule Dataloader.User do
 
     many_to_many(:pictures, Dataloader.Picture, join_through: Dataloader.UserPicture)
 
+    many_to_many(:pictures_published, Dataloader.Picture,
+      join_through: Dataloader.UserPicture,
+      join_where: [status: "published"],
+      where: [status: "published"]
+    )
+
     many_to_many(:pictures_join_compare_value, Dataloader.Picture,
       join_through: Dataloader.UserPicture,
       join_where: [status: "published"]

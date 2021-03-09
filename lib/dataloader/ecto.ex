@@ -800,7 +800,6 @@ if Code.ensure_loaded?(Ecto) do
         )
       end
 
-      # Fix me: never called because assoc is always length == 1
       defp build_preload_lateral_query(
              [%Ecto.Association.ManyToMany{} = assoc | rest],
              query,
@@ -808,7 +807,7 @@ if Code.ensure_loaded?(Ecto) do
            ) do
         [{owner_join_key, owner_key}, {related_join_key, related_key}] = assoc.join_keys
 
-        query =
+        join_query =
           query
           |> join(:inner, [x], y in ^assoc.join_through,
             on: field(x, ^related_key) == field(y, ^related_join_key)
@@ -816,6 +815,13 @@ if Code.ensure_loaded?(Ecto) do
           |> join(:inner, [..., x], y in ^assoc.owner,
             on: field(x, ^owner_join_key) == field(y, ^owner_key)
           )
+
+        binds_count = Ecto.Query.Builder.count_binds(join_query)
+
+        query =
+          join_query
+          |> Ecto.Association.combine_joins_query(assoc.where, binds_count - 3)
+          |> Ecto.Association.combine_joins_query(assoc.join_where, binds_count - 2)
 
         build_preload_lateral_query(rest, query, :join_last)
       end
