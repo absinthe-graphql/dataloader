@@ -1,7 +1,7 @@
 defmodule Dataloader.Ecto.HasManyThroughManyToManyTest do
   use ExUnit.Case, async: true
 
-  alias Dataloader.{User, Post, Score, Like}
+  alias Dataloader.{User, Post, Score, Like, Picture, UserPicture}
   import Ecto.Query
   alias Dataloader.TestRepo, as: Repo
 
@@ -105,6 +105,51 @@ defmodule Dataloader.Ecto.HasManyThroughManyToManyTest do
         |> Dataloader.run()
 
       assert [score2] == Dataloader.get(loader, Test, args, user1)
+    end
+
+    test "load has_many through many_to_many in second position", %{loader: loader} do
+      leaderboard = %Dataloader.Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
+      user1 = %User{username: "Ben Wilson", leaderboard_id: leaderboard.id} |> Repo.insert!()
+
+      pic1 = %Picture{url: "https://example.com/1.jpg"} |> Repo.insert!()
+      pic2 = %Picture{url: "https://example.com/2.jpg"} |> Repo.insert!()
+
+      %UserPicture{user_id: user1.id, picture_id: pic1.id} |> Repo.insert!()
+      %UserPicture{user_id: user1.id, picture_id: pic2.id} |> Repo.insert!()
+
+      args = {:user_pictures, %{limit: 10}}
+
+      loader =
+        loader
+        |> Dataloader.load(Test, args, leaderboard)
+        |> Dataloader.run()
+
+      assert [pic1, pic2] == Dataloader.get(loader, Test, args, leaderboard)
+    end
+
+    test "load has_many through many_to_many in second position with third assoc", %{
+      loader: loader
+    } do
+      leaderboard = %Dataloader.Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
+      user1 = %User{username: "Ben Wilson", leaderboard_id: leaderboard.id} |> Repo.insert!()
+
+      pic1 = %Picture{url: "https://example.com/1.jpg"} |> Repo.insert!()
+      pic2 = %Picture{url: "https://example.com/2.jpg"} |> Repo.insert!()
+
+      %UserPicture{user_id: user1.id, picture_id: pic1.id} |> Repo.insert!()
+      %UserPicture{user_id: user1.id, picture_id: pic2.id} |> Repo.insert!()
+
+      like1 = %Like{user_id: user1.id, picture_id: pic1.id} |> Repo.insert!()
+      like2 = %Like{user_id: user1.id, picture_id: pic2.id} |> Repo.insert!()
+
+      args = {:user_pictures_likes, %{limit: 10}}
+
+      loader =
+        loader
+        |> Dataloader.load(Test, args, leaderboard)
+        |> Dataloader.run()
+
+      assert [like1, like2] == Dataloader.get(loader, Test, args, leaderboard)
     end
   end
 end

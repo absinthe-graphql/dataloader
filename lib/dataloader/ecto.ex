@@ -773,7 +773,6 @@ if Code.ensure_loaded?(Ecto) do
            ) do
         [{owner_join_key, owner_key}, {related_join_key, related_key}] = assoc.join_keys
 
-
         join_query =
           query
           |> join(:inner, [..., x], y in ^assoc.join_through,

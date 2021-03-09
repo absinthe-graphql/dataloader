@@ -4,5 +4,8 @@ defmodule Dataloader.Leaderboard do
   schema "leaderboards" do
     field(:name, :string)
     has_many(:scores, Dataloader.Score)
+    has_many(:users, Dataloader.User)
+    has_many(:user_pictures, through: [:users, :pictures])
+    has_many(:user_pictures_likes, through: [:users, :pictures, :likes])
   end
 end
