@@ -30,7 +30,7 @@ defmodule Dataloader.Ecto.ManyToManyJoinWhereTest do
     |> limit(^limit)
   end
 
-  describe "join_where in mant-to-many associations" do
+  describe "join_where in many-to-many associations" do
     test "compare value", %{loader: loader} do
       user1 = %User{username: "Ben Wilson"} |> Repo.insert!()
 
