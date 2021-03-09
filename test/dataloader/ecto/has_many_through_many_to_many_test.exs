@@ -89,9 +89,9 @@ defmodule Dataloader.Ecto.HasManyThroughManyToManyTest do
         %Post{user_id: user1.id, title: "unpublished_post", status: "unpublished"}
         |> Repo.insert!()
 
-      score1 = %Score{post_id: post1.id, leaderboard_id: leaderboard.id} |> Repo.insert!()
+      _score1 = %Score{post_id: post1.id, leaderboard_id: leaderboard.id} |> Repo.insert!()
       score2 = %Score{post_id: post2.id, leaderboard_id: leaderboard.id} |> Repo.insert!()
-      score3 = %Score{post_id: post3.id, leaderboard_id: leaderboard.id} |> Repo.insert!()
+      _score3 = %Score{post_id: post3.id, leaderboard_id: leaderboard.id} |> Repo.insert!()
 
       %Like{user_id: user1.id, post_id: post1.id, status: "unpublished"} |> Repo.insert!()
       %Like{user_id: user1.id, post_id: post2.id, status: "published"} |> Repo.insert!()
