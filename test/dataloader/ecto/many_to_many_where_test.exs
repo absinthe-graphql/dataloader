@@ -23,14 +23,6 @@ defmodule Dataloader.Ecto.ManyToManyWhereTest do
     {:ok, loader: loader}
   end
 
-  defp query(User, %{limit: limit}, test_pid) do
-    send(test_pid, :querying)
-
-    User
-    |> from(as: :user)
-    |> limit(^limit)
-  end
-
   defp query(schema, %{limit: limit}, test_pid) do
     send(test_pid, :querying)
 

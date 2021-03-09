@@ -12,6 +12,8 @@ defmodule Dataloader.User do
     many_to_many(:liked_posts, Dataloader.Post, join_through: Dataloader.Like)
     has_many(:fans, through: [:likes, :user])
 
+    has_many(:liked_posts_scores, through: [:liked_posts, :scores])
+
     many_to_many(:pictures_join_compare_value, Dataloader.Picture,
       join_through: Dataloader.UserPicture,
       join_keys: [user_id: :id, picture_id: :id],
