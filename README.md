@@ -73,7 +73,7 @@ Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_do
 Running tests for Dataloader requires a running instance of Postgres. The easiest way to do this is to run Postgres inside of Docker whilst running the Dataloader tests. In one terminal run:
 
 ```terminal
-$ docker run -p 5432:5432 postgres
+$ docker run -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust postgres
 ```
 
 and in another terminal run:
