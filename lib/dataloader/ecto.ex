@@ -752,21 +752,20 @@ if Code.ensure_loaded?(Ecto) do
            ) do
         [{owner_join_key, owner_key}, {related_join_key, related_key}] = assoc.join_keys
 
-        join =
+        join_query =
           query
           |> join(:inner, [x], y in ^assoc.join_through,
             on: field(x, ^related_key) == field(y, ^related_join_key)
           )
           |> where([..., x], field(x, ^owner_join_key) == field(parent_as(:parent), ^owner_key))
 
-        binds = Ecto.Query.Builder.count_binds(join)
+        binds_count = Ecto.Query.Builder.count_binds(join_query)
 
-        join
+        join_query
         |> Ecto.Association.combine_joins_query(assoc.where, 0)
-        |> Ecto.Association.combine_joins_query(assoc.join_where, binds - 1)
+        |> Ecto.Association.combine_joins_query(assoc.join_where, binds_count - 1)
       end
 
-      # Fix me: never called because the functions that call this are never called
       defp build_preload_lateral_query(
              [%Ecto.Association.ManyToMany{} = assoc],
              query,
@@ -774,11 +773,18 @@ if Code.ensure_loaded?(Ecto) do
            ) do
         [{owner_join_key, owner_key}, {related_join_key, related_key}] = assoc.join_keys
 
-        query
-        |> join(:inner, [..., x], y in ^assoc.join_through,
-          on: field(x, ^related_key) == field(y, ^related_join_key)
-        )
-        |> where([..., x], field(x, ^owner_join_key) == field(parent_as(:parent), ^owner_key))
+
+        join_query =
+          query
+          |> join(:inner, [..., x], y in ^assoc.join_through,
+            on: field(x, ^related_key) == field(y, ^related_join_key)
+          )
+          |> where([..., x], field(x, ^owner_join_key) == field(parent_as(:parent), ^owner_key))
+
+        binds_count = Ecto.Query.Builder.count_binds(join_query)
+
+        join_query
+        |> Ecto.Association.combine_joins_query(assoc.where, binds_count - 2)
       end
 
       defp build_preload_lateral_query([assoc], query, :join_first) do

@@ -8,6 +8,7 @@ defmodule Dataloader.Post do
     has_many(:liking_users, through: [:likes, :user])
 
     field(:title, :string)
+    field(:status, :string)
     field(:deleted_at, :utc_datetime)
   end
 end

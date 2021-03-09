@@ -14,6 +14,7 @@ defmodule Absinthe.Ecto.TestRepo.Migrations.MigrateAll do
     create table(:posts) do
       add :user_id, references(:users)
       add :title, :string
+      add :status, :string
       add :deleted_at, :utc_datetime
     end
 
