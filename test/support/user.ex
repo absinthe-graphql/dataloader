@@ -16,10 +16,20 @@ defmodule Dataloader.User do
       where: [status: "published"]
     )
 
+    many_to_many(:published_liked_published_posts, Dataloader.Post,
+      join_through: Dataloader.Like,
+      where: [status: "published"],
+      join_where: [status: "published"]
+    )
+
     has_many(:fans, through: [:likes, :user])
 
     has_many(:liked_posts_scores, through: [:liked_posts, :scores])
     has_many(:liked_published_posts_scores, through: [:liked_published_posts, :scores])
+
+    has_many(:published_liked_published_posts_scores,
+      through: [:published_liked_published_posts, :scores]
+    )
 
     many_to_many(:pictures_join_compare_value, Dataloader.Picture,
       join_through: Dataloader.UserPicture,

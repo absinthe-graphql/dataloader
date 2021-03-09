@@ -785,6 +785,7 @@ if Code.ensure_loaded?(Ecto) do
 
         join_query
         |> Ecto.Association.combine_joins_query(assoc.where, binds_count - 2)
+        |> Ecto.Association.combine_joins_query(assoc.join_where, binds_count - 1)
       end
 
       defp build_preload_lateral_query([assoc], query, :join_first) do

@@ -30,10 +30,10 @@ defmodule Dataloader.Ecto.HasManyThroughManyToManyTest do
     |> limit(^limit)
   end
 
-  describe "has_many through mant-to-many associations" do
+  describe "has_many through many-to-many associations" do
     test "load has_many through many_to_many", %{loader: loader} do
       leaderboard = %Dataloader.Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
-      user1 = %User{username: "Ben Wilson", leaderboard_id: leaderboard.id } |> Repo.insert!()
+      user1 = %User{username: "Ben Wilson", leaderboard_id: leaderboard.id} |> Repo.insert!()
 
       post1 = %Post{user_id: user1.id, title: "foo"} |> Repo.insert!()
 
@@ -51,7 +51,7 @@ defmodule Dataloader.Ecto.HasManyThroughManyToManyTest do
       assert [score1] == Dataloader.get(loader, Test, args, user1)
     end
 
-    test "load has_many through many_to_many - with where (on target schema)", %{loader: loader} do
+    test "load has_many through many_to_many - with where on target schema", %{loader: loader} do
       leaderboard = %Dataloader.Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
       user1 = %User{username: "Ben Wilson", leaderboard_id: leaderboard.id} |> Repo.insert!()
 
@@ -72,6 +72,39 @@ defmodule Dataloader.Ecto.HasManyThroughManyToManyTest do
         |> Dataloader.run()
 
       assert [score1] == Dataloader.get(loader, Test, args, user1)
+    end
+
+    test "load has_many through many_to_many - with where on target schema and join_where on assoc schema",
+         %{loader: loader} do
+      leaderboard = %Dataloader.Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
+      user1 = %User{username: "Ben Wilson", leaderboard_id: leaderboard.id} |> Repo.insert!()
+
+      post1 =
+        %Post{user_id: user1.id, title: "published_post", status: "published"} |> Repo.insert!()
+
+      post2 =
+        %Post{user_id: user1.id, title: "published_post", status: "published"} |> Repo.insert!()
+
+      post3 =
+        %Post{user_id: user1.id, title: "unpublished_post", status: "unpublished"}
+        |> Repo.insert!()
+
+      score1 = %Score{post_id: post1.id, leaderboard_id: leaderboard.id} |> Repo.insert!()
+      score2 = %Score{post_id: post2.id, leaderboard_id: leaderboard.id} |> Repo.insert!()
+      score3 = %Score{post_id: post3.id, leaderboard_id: leaderboard.id} |> Repo.insert!()
+
+      %Like{user_id: user1.id, post_id: post1.id, status: "unpublished"} |> Repo.insert!()
+      %Like{user_id: user1.id, post_id: post2.id, status: "published"} |> Repo.insert!()
+      %Like{user_id: user1.id, post_id: post3.id} |> Repo.insert!()
+
+      args = {:published_liked_published_posts_scores, %{limit: 10}}
+
+      loader =
+        loader
+        |> Dataloader.load(Test, args, user1)
+        |> Dataloader.run()
+
+      assert [score2] == Dataloader.get(loader, Test, args, user1)
     end
   end
 end
