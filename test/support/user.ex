@@ -4,6 +4,7 @@ defmodule Dataloader.User do
   schema "users" do
     field(:username, :string)
     has_many(:posts, Dataloader.Post)
+    has_many(:published_posts, Dataloader.Post, where: [status: "published"])
     belongs_to(:leaderboard, Dataloader.Leaderboard)
 
     has_many(:scores, through: [:posts, :scores])
