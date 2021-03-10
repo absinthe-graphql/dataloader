@@ -1,7 +1,7 @@
 defmodule Dataloader.Ecto.HasManyThroughManyToManyTest do
   use ExUnit.Case, async: true
 
-  alias Dataloader.{User, Post, Score, Like, Picture, UserPicture}
+  alias Dataloader.{Leaderboard, User, Post, Score, Like, Picture, UserPicture}
   import Ecto.Query
   alias Dataloader.TestRepo, as: Repo
 
@@ -23,6 +23,22 @@ defmodule Dataloader.Ecto.HasManyThroughManyToManyTest do
     {:ok, loader: loader}
   end
 
+  defp query(Leaderboard, %{limit: limit}, test_pid) do
+    send(test_pid, :querying)
+
+    Leaderboard
+    |> limit(^limit)
+    |> join(:left, [l], s in assoc(l, :score))
+  end
+
+  defp query(User, %{limit: limit}, test_pid) do
+    send(test_pid, :querying)
+
+    User
+    |> limit(^limit)
+    |> join(:left, [u], p in assoc(u, :posts))
+  end
+
   defp query(schema, %{limit: limit}, test_pid) do
     send(test_pid, :querying)
 
@@ -32,7 +48,7 @@ defmodule Dataloader.Ecto.HasManyThroughManyToManyTest do
 
   describe "has_many through many-to-many associations" do
     test "load has_many through many_to_many", %{loader: loader} do
-      leaderboard = %Dataloader.Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
+      leaderboard = %Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
       user1 = %User{username: "Ben Wilson", leaderboard_id: leaderboard.id} |> Repo.insert!()
 
       post1 = %Post{user_id: user1.id, title: "foo"} |> Repo.insert!()
@@ -52,7 +68,7 @@ defmodule Dataloader.Ecto.HasManyThroughManyToManyTest do
     end
 
     test "load has_many through many_to_many - with where on target schema", %{loader: loader} do
-      leaderboard = %Dataloader.Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
+      leaderboard = %Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
       user1 = %User{username: "Ben Wilson", leaderboard_id: leaderboard.id} |> Repo.insert!()
 
       post1 = %Post{user_id: user1.id, title: "pub_post", status: "published"} |> Repo.insert!()
@@ -76,7 +92,7 @@ defmodule Dataloader.Ecto.HasManyThroughManyToManyTest do
 
     test "load has_many through many_to_many - with where on target schema and join_where on assoc schema",
          %{loader: loader} do
-      leaderboard = %Dataloader.Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
+      leaderboard = %Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
       user1 = %User{username: "Ben Wilson", leaderboard_id: leaderboard.id} |> Repo.insert!()
 
       post1 =
@@ -108,7 +124,7 @@ defmodule Dataloader.Ecto.HasManyThroughManyToManyTest do
     end
 
     test "load has_many through many_to_many in second position", %{loader: loader} do
-      leaderboard = %Dataloader.Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
+      leaderboard = %Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
       user1 = %User{username: "Ben Wilson", leaderboard_id: leaderboard.id} |> Repo.insert!()
 
       pic1 = %Picture{url: "https://example.com/1.jpg"} |> Repo.insert!()
@@ -129,7 +145,7 @@ defmodule Dataloader.Ecto.HasManyThroughManyToManyTest do
 
     test "load has_many through many_to_many in second position - with where on target schema and join_where on assoc schema",
          %{loader: loader} do
-      leaderboard = %Dataloader.Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
+      leaderboard = %Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
       user1 = %User{username: "Ben Wilson", leaderboard_id: leaderboard.id} |> Repo.insert!()
 
       pic1 = %Picture{url: "https://example.com/1.jpg"} |> Repo.insert!()
@@ -153,7 +169,7 @@ defmodule Dataloader.Ecto.HasManyThroughManyToManyTest do
     test "load has_many through many_to_many in second position with third assoc", %{
       loader: loader
     } do
-      leaderboard = %Dataloader.Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
+      leaderboard = %Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
       user1 = %User{username: "Ben Wilson", leaderboard_id: leaderboard.id} |> Repo.insert!()
 
       pic1 = %Picture{url: "https://example.com/1.jpg"} |> Repo.insert!()
@@ -177,7 +193,7 @@ defmodule Dataloader.Ecto.HasManyThroughManyToManyTest do
 
     test "load has_many through many_to_many in second position with third assoc - with where on target schema and join_where on assoc schema",
          %{loader: loader} do
-      leaderboard = %Dataloader.Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
+      leaderboard = %Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
       user1 = %User{username: "Ben Wilson", leaderboard_id: leaderboard.id} |> Repo.insert!()
 
       pic1 = %Picture{url: "https://example.com/1.jpg"} |> Repo.insert!()
