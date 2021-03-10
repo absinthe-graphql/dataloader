@@ -39,6 +39,30 @@ defmodule Dataloader.Ecto.HasManyThroughManyToManyTest do
     |> join(:left, [u], p in assoc(u, :posts))
   end
 
+  defp query(Like, %{limit: limit}, test_pid) do
+    send(test_pid, :querying)
+
+    Like
+    |> limit(^limit)
+    |> join(:left, [l], u in User, on: l.user_id == u.id)
+  end
+
+  defp query(Score, %{limit: limit}, test_pid) do
+    send(test_pid, :querying)
+
+    Score
+    |> limit(^limit)
+    |> join(:left, [s], p in Post, on: s.post_id == p.id)
+  end
+
+  defp query(Picture, %{limit: limit}, test_pid) do
+    send(test_pid, :querying)
+
+    Picture
+    |> limit(^limit)
+    |> join(:left, [p], l in assoc(p, :likes))
+  end
+
   defp query(schema, %{limit: limit}, test_pid) do
     send(test_pid, :querying)
 
