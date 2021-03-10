@@ -5,11 +5,13 @@ defmodule Dataloader.User do
     field(:username, :string)
     has_many(:posts, Dataloader.Post)
     has_many(:published_posts, Dataloader.Post, where: [status: "published"])
+    has_many(:published_posts_likes, through: [:published_posts, :likes])
     belongs_to(:leaderboard, Dataloader.Leaderboard)
 
     has_many(:scores, through: [:posts, :scores])
     has_many(:awarded_posts, through: [:scores, :post])
     has_many(:likes, through: [:awarded_posts, :likes])
+
     many_to_many(:liked_posts, Dataloader.Post, join_through: Dataloader.Like)
 
     many_to_many(:liked_published_posts, Dataloader.Post,

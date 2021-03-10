@@ -798,6 +798,19 @@ if Code.ensure_loaded?(Ecto) do
         |> where([x], field(x, ^assoc.related_key) == field(parent_as(:parent), ^assoc.owner_key))
       end
 
+      defp build_preload_lateral_query([%Ecto.Association.Has{} = assoc], query, :join_last) do
+        join_query =
+          query
+          |> where(
+            [..., x],
+            field(x, ^assoc.related_key) == field(parent_as(:parent), ^assoc.owner_key)
+          )
+
+        binds_count = Ecto.Query.Builder.count_binds(join_query)
+
+        join_query
+        |> Ecto.Association.combine_joins_query(assoc.where, binds_count - 1)
+      end
 
       defp build_preload_lateral_query([assoc], query, :join_last) do
         query
