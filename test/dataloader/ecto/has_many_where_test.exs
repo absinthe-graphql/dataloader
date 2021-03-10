@@ -1,7 +1,7 @@
 defmodule Dataloader.Ecto.HasManyWhereTest do
   use ExUnit.Case, async: true
 
-  alias Dataloader.{User, Post, Like}
+  alias Dataloader.{User, Post, Like, Picture, UserPicture}
   import Ecto.Query
   alias Dataloader.TestRepo, as: Repo
 
@@ -47,7 +47,7 @@ defmodule Dataloader.Ecto.HasManyWhereTest do
       assert [post1] == Dataloader.get(loader, Test, args, user1)
     end
 
-    test "simple filtered has_many in has_many through in first position", %{loader: loader} do
+    test "filtered has_many in has_many through in first position", %{loader: loader} do
       user1 = %User{username: "Ben Wilson"} |> Repo.insert!()
 
       post1 = %Post{user_id: user1.id, title: "foo", status: "published"} |> Repo.insert!()
@@ -64,6 +64,52 @@ defmodule Dataloader.Ecto.HasManyWhereTest do
         |> Dataloader.run()
 
       assert [like1] == Dataloader.get(loader, Test, args, user1)
+    end
+
+    test "filtered has_many in has_many through in second position", %{loader: loader} do
+      user1 = %User{username: "Ben Wilson"} |> Repo.insert!()
+
+      pic1 = %Picture{url: "https://example.com/1.jpg"} |> Repo.insert!()
+      pic2 = %Picture{url: "https://example.com/2.jpg"} |> Repo.insert!()
+
+      %UserPicture{user_id: user1.id, picture_id: pic1.id} |> Repo.insert!()
+      %UserPicture{user_id: user1.id, picture_id: pic2.id} |> Repo.insert!()
+
+      like1 = %Like{user_id: user1.id, picture_id: pic1.id, status: "published"} |> Repo.insert!()
+
+      _like2 =
+        %Like{user_id: user1.id, picture_id: pic2.id, status: "unpublished"} |> Repo.insert!()
+
+      args = {:published_picture_likes, %{limit: 10}}
+
+      loader =
+        loader
+        |> Dataloader.load(Test, args, user1)
+        |> Dataloader.run()
+
+      assert [like1] == Dataloader.get(loader, Test, args, user1)
+    end
+
+    test "filtered has_many in has_many through in sandwich position", %{loader: loader} do
+      leaderboard = %Dataloader.Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
+      user1 = %User{username: "Ben Wilson", leaderboard_id: leaderboard.id} |> Repo.insert!()
+
+      post1 = %Post{user_id: user1.id, title: "foo", status: "published"} |> Repo.insert!()
+      post2 = %Post{user_id: user1.id, title: "bar", status: "unpublished"} |> Repo.insert!()
+
+      like1 = %Like{user_id: user1.id, post_id: post1.id} |> Repo.insert!()
+
+      _like2 =
+        %Like{user_id: user1.id, post_id: post2.id, status: "unpublished"} |> Repo.insert!()
+
+      args = {:user_published_posts_likes, %{limit: 10}}
+
+      loader =
+        loader
+        |> Dataloader.load(Test, args, leaderboard)
+        |> Dataloader.run()
+
+      assert [like1] == Dataloader.get(loader, Test, args, leaderboard)
     end
   end
 end

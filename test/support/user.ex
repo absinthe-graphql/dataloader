@@ -36,6 +36,8 @@ defmodule Dataloader.User do
 
     many_to_many(:pictures, Dataloader.Picture, join_through: Dataloader.UserPicture)
 
+    has_many(:published_picture_likes, through: [:pictures, :published_likes])
+
     many_to_many(:pictures_published, Dataloader.Picture,
       join_through: Dataloader.UserPicture,
       join_where: [status: "published"],

@@ -872,6 +872,21 @@ if Code.ensure_loaded?(Ecto) do
         build_preload_lateral_query(rest, query, :join_last)
       end
 
+      defp build_preload_lateral_query(
+             [%Ecto.Association.Has{} = assoc | rest],
+             query,
+             :join_first
+           ) do
+        query =
+          query
+          |> join(:inner, [x], y in ^assoc.owner,
+            on: field(x, ^assoc.related_key) == field(y, ^assoc.owner_key)
+          )
+          |> Ecto.Association.combine_joins_query(assoc.where, 0)
+
+        build_preload_lateral_query(rest, query, :join_last)
+      end
+
       defp build_preload_lateral_query([assoc | rest], query, :join_first) do
         query =
           query
@@ -880,6 +895,23 @@ if Code.ensure_loaded?(Ecto) do
           )
 
         build_preload_lateral_query(rest, query, :join_last)
+      end
+
+      defp build_preload_lateral_query(
+             [%Ecto.Association.Has{} = assoc | rest],
+             query,
+             :join_last
+           ) do
+        binds_count = Ecto.Query.Builder.count_binds(query)
+
+        join_query =
+          query
+          |> Ecto.Association.combine_joins_query(assoc.where, binds_count - 1)
+          |> join(:inner, [..., x], y in ^assoc.owner,
+            on: field(x, ^assoc.related_key) == field(y, ^assoc.owner_key)
+          )
+
+        build_preload_lateral_query(rest, join_query, :join_last)
       end
 
       defp build_preload_lateral_query([assoc | rest], query, :join_last) do
