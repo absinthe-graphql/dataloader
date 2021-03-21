@@ -787,18 +787,13 @@ if Code.ensure_loaded?(Ecto) do
         |> Ecto.Association.combine_joins_query(assoc.join_where, binds_count - 1)
       end
 
-      defp build_preload_lateral_query([%Ecto.Association.Has{} = assoc], query, :join_first) do
+      defp build_preload_lateral_query([assoc], query, :join_first) do
         query
         |> where([x], field(x, ^assoc.related_key) == field(parent_as(:parent), ^assoc.owner_key))
         |> Ecto.Association.combine_assoc_query(assoc.where)
       end
 
-      defp build_preload_lateral_query([assoc], query, :join_first) do
-        query
-        |> where([x], field(x, ^assoc.related_key) == field(parent_as(:parent), ^assoc.owner_key))
-      end
-
-      defp build_preload_lateral_query([%Ecto.Association.Has{} = assoc], query, :join_last) do
+      defp build_preload_lateral_query([assoc], query, :join_last) do
         join_query =
           query
           |> where(
@@ -810,14 +805,6 @@ if Code.ensure_loaded?(Ecto) do
 
         join_query
         |> Ecto.Association.combine_joins_query(assoc.where, binds_count - 1)
-      end
-
-      defp build_preload_lateral_query([assoc], query, :join_last) do
-        query
-        |> where(
-          [..., x],
-          field(x, ^assoc.related_key) == field(parent_as(:parent), ^assoc.owner_key)
-        )
       end
 
       defp build_preload_lateral_query(
@@ -873,7 +860,7 @@ if Code.ensure_loaded?(Ecto) do
       end
 
       defp build_preload_lateral_query(
-             [%Ecto.Association.Has{} = assoc | rest],
+             [assoc | rest],
              query,
              :join_first
            ) do
@@ -887,18 +874,8 @@ if Code.ensure_loaded?(Ecto) do
         build_preload_lateral_query(rest, query, :join_last)
       end
 
-      defp build_preload_lateral_query([assoc | rest], query, :join_first) do
-        query =
-          query
-          |> join(:inner, [x], y in ^assoc.owner,
-            on: field(x, ^assoc.related_key) == field(y, ^assoc.owner_key)
-          )
-
-        build_preload_lateral_query(rest, query, :join_last)
-      end
-
       defp build_preload_lateral_query(
-             [%Ecto.Association.Has{} = assoc | rest],
+             [assoc | rest],
              query,
              :join_last
            ) do
@@ -912,16 +889,6 @@ if Code.ensure_loaded?(Ecto) do
           )
 
         build_preload_lateral_query(rest, join_query, :join_last)
-      end
-
-      defp build_preload_lateral_query([assoc | rest], query, :join_last) do
-        query =
-          query
-          |> join(:inner, [..., x], y in ^assoc.owner,
-            on: field(x, ^assoc.related_key) == field(y, ^assoc.owner_key)
-          )
-
-        build_preload_lateral_query(rest, query, :join_last)
       end
 
       defp maybe_distinct(query, [%Ecto.Association.Has{}, %Ecto.Association.BelongsTo{} | _]) do
