@@ -14,7 +14,14 @@ defmodule Dataloader.Mixfile do
       package: package(),
       aliases: aliases(),
       deps: deps(),
-      docs: docs()
+      docs: docs(),
+      preferred_cli_env: [
+        dialyzer: :test
+      ],
+      dialyzer: [
+        plt_core_path: "priv/plts",
+        plt_add_apps: [:mix, :ecto, :ecto_sql]
+      ]
     ]
   end
 
@@ -57,7 +64,7 @@ defmodule Dataloader.Mixfile do
       {:ecto, ">= 3.4.3 and < 4.0.0", optional: true},
       {:ecto_sql, "~> 3.0", optional: true, only: :test},
       {:postgrex, "~> 0.14", only: :test, runtime: false},
-      {:dialyxir, "~> 0.5", only: :dev, runtime: false},
+      {:dialyxir, "~> 1.0.0", only: [:dev, :test], runtime: false},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
     ]
   end

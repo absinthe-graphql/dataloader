@@ -45,10 +45,22 @@ jobs:
         path: |
           deps
           _build
-        key: ${{ runner.os }}-deps-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('**/mix.lock') }}-git-${{ github.sha }}
+        key: deps-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('**/mix.lock') }}-git-${{ github.sha }}
         restore-keys: |
-          ${{ runner.os }}-deps-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('**/mix.lock') }}
-          ${{ runner.os }}-deps-${{ matrix.otp }}-${{ matrix.elixir }}
+          deps-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('**/mix.lock') }}
+          deps-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}
+
+    - name: Create dializer plts path
+      run: mkdir -p priv/plts
+
+    - name: Restore plts cache
+      uses: actions/cache@v2
+      with:
+        path: priv/plts
+        key: plts-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('**/mix.lock') }}-${{ github.sha }}
+        restore-keys: |
+          plts-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('**/mix.lock') }}
+          plts-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}
 
     - name: Install package dependencies
       run: mix deps.get
@@ -67,3 +79,6 @@ jobs:
         mix test
       env:
         MIX_ENV: test
+
+    - name: Run dialyzer
+      run: mix dialyzer
