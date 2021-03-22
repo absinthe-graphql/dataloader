@@ -33,7 +33,7 @@ defmodule Dataloader.LimitQueryTest do
     |> having(count() >= ^n)
     |> order_by(^order_by)
     |> limit(^limit)
-    |> preload([likes: :user])
+    |> preload(likes: :user)
   end
 
   defp query(schema, %{limit: limit, order_by: order_by}, test_pid) do

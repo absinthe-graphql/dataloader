@@ -24,3 +24,7 @@ dataloader-*.tar
 
 # Temporary files for e.g. tests.
 /tmp/
+
+# Ignore Dialyzer .plts files
+/priv/plts/*.plt
+/priv/plts/*.plt.hash
