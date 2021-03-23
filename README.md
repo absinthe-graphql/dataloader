@@ -1,6 +1,6 @@
 # Dataloader
 
-[![Build Status](https://img.shields.io/travis/absinthe-graphql/dataloader.svg?style=flat-square)](https://travis-ci.org/absinthe-graphql/dataloader)
+[![Build Status](https://github.com/absinthe-graphql/dataloader/workflows/CI/badge.svg)](https://github.com/absinthe-graphql/dataloader/actions?query=workflow%3ACI)
 [![Version](https://img.shields.io/hexpm/v/dataloader.svg)](https://hex.pm/packages/dataloader)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/dataloader/)
 [![Download](https://img.shields.io/hexpm/dt/dataloader.svg)](https://hex.pm/packages/dataloader)
@@ -22,6 +22,18 @@ def deps do
   ]
 end
 ```
+
+Note: Dataloader requires Elixir 1.10 or higher.
+
+## Upgrading
+
+See [CHANGELOG](./CHANGELOG.md) for upgrade steps between versions.
+
+## Documentation
+
+- [Dataloader hexdocs](https://hexdocs.pm/dataloader).
+- For the tutorial, guides, and general information about Absinthe-related
+  projects, see [http://absinthe-graphql.org](http://absinthe-graphql.org).
 
 ## Usage
 
@@ -60,27 +72,30 @@ a different source used for each context. This provides an easy way to enforce
 data access rules within each context. See the `Dataloader.Ecto` moduledocs for
 more details
 
-## Sources
+### Sources
 
 Dataloader ships with two different built in sources. The first is the Ecto source for easily pulling out data with ecto. The other is a simple `KV` key value source. See each module for its respective documentation.
 
 Anything that implements the `Dataloader.Source` protocol can act as a source.
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc). The docs can be found at [https://hexdocs.pm/dataloader](https://hexdocs.pm/dataloader).
+## Community
+
+The project is under constant improvement by a growing list of
+contributors, and your feedback is important. Please join us in Slack
+(`#absinthe-graphql` under the Elixir Slack account) or the Elixir Forum
+(tagged `absinthe`).
+
+Please remember that all interactions in our official spaces follow
+our [Code of Conduct](./CODE_OF_CONDUCT.md).
+
+## Related Projects
+
+See the [GitHub organization](https://github.com/absinthe-graphql).
 
 ## Contributing
 
-Running tests for Dataloader requires a running instance of Postgres. The easiest way to do this is to run Postgres inside of Docker whilst running the Dataloader tests. In one terminal run:
+Please follow [contribution guide](./CONTRIBUTING.md).
 
-```terminal
-$ docker run -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust postgres
-```
+## License
 
-and in another terminal run:
-
-```terminal
-$ MIX_ENV=test mix ecto.setup
-$ mix test
-```
-
-If you kill the docker process, you will need to rerun the `ecto.setup` command as the data in the container is ephemeral (no mounted volumes are leveraged).
+See [LICENSE.md](./LICENSE.md).
