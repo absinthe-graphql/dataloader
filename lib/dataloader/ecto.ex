@@ -278,7 +278,7 @@ if Code.ensure_loaded?(Ecto) do
     @type batch_fun :: (Ecto.Queryable.t(), Ecto.Query.t(), any, [any], repo_opts -> [any])
     @type opt ::
             {:query, query_fun}
-            | {:default_params, Map.t()}
+            | {:default_params, map()}
             | {:repo_opts, repo_opts}
             | {:timeout, pos_integer}
             | {:run_batch, batch_fun()}
@@ -336,8 +336,11 @@ if Code.ensure_loaded?(Ecto) do
     end
 
     defp load_rows(col, inputs, queryable, query, repo, repo_opts) do
+      pk = queryable.__schema__(:primary_key)
+
       case query do
-        %Ecto.Query{limit: limit, offset: offset} when not is_nil(limit) or not is_nil(offset) ->
+        %Ecto.Query{limit: limit, offset: offset}
+        when pk != [col] and (not is_nil(limit) or not is_nil(offset)) ->
           load_rows_lateral(col, inputs, queryable, query, repo, repo_opts)
 
         _ ->
@@ -355,14 +358,22 @@ if Code.ensure_loaded?(Ecto) do
         |> select(^[col])
         |> distinct(true)
 
-      query =
+      inner_query =
         query
         |> where([q], field(q, ^col) == field(parent_as(:input), ^col))
+        |> exclude(:preload)
 
-      from(input in subquery(inputs_query), as: :input)
-      |> join(:inner_lateral, q in subquery(query))
-      |> select([_input, q], q)
-      |> repo.all(repo_opts)
+      results =
+        from(input in subquery(inputs_query), as: :input)
+        |> join(:inner_lateral, q in subquery(inner_query))
+        |> select([_input, q], q)
+        |> repo.all(repo_opts)
+
+      case query.preloads do
+        [] -> results
+        # Preloads can't be used in a subquery, using Repo.preload instead
+        preloads -> repo.preload(results, preloads, repo_opts)
+      end
     end
 
     defp group_results(results, col) do
@@ -673,15 +684,19 @@ if Code.ensure_loaded?(Ecto) do
 
       def preload_lateral([], _assoc, _query, _opts), do: []
 
-      def preload_lateral([%schema{} | _] = structs, assoc, query, repo, repo_opts) do
+      def preload_lateral([%schema{} = struct | _] = structs, assoc, query, repo, repo_opts) do
         [pk] = schema.__schema__(:primary_key)
 
+        # Carry the database prefix across from already-loaded records if not already set
+        repo_opts = Keyword.put_new(repo_opts, :prefix, struct.__meta__.prefix)
+
         assocs = expand_assocs(schema, [assoc])
+        query_excluding_preloads = exclude(query, :preload)
 
         inner_query =
           assocs
           |> Enum.reverse()
-          |> build_preload_lateral_query(query, :join_first)
+          |> build_preload_lateral_query(query_excluding_preloads, :join_first)
           |> maybe_distinct(assocs)
 
         results =
@@ -692,6 +707,18 @@ if Code.ensure_loaded?(Ecto) do
             select: {field(x, ^pk), y}
           )
           |> repo.all(repo_opts)
+
+        results =
+          case query.preloads do
+            [] ->
+              results
+
+            # Preloads can't be used in a subquery, using Repo.preload instead
+            preloads ->
+              {keys, vals} = Enum.unzip(results)
+              vals = repo.preload(vals, preloads, repo_opts)
+              Enum.zip(keys, vals)
+          end
 
         {keyed, default} =
           case schema.__schema__(:association, assoc) do
@@ -725,11 +752,18 @@ if Code.ensure_loaded?(Ecto) do
            ) do
         [{owner_join_key, owner_key}, {related_join_key, related_key}] = assoc.join_keys
 
-        query
-        |> join(:inner, [x], y in ^assoc.join_through,
-          on: field(x, ^related_key) == field(y, ^related_join_key)
-        )
-        |> where([..., x], field(x, ^owner_join_key) == field(parent_as(:parent), ^owner_key))
+        join_query =
+          query
+          |> join(:inner, [x], y in ^assoc.join_through,
+            on: field(x, ^related_key) == field(y, ^related_join_key)
+          )
+          |> where([..., x], field(x, ^owner_join_key) == field(parent_as(:parent), ^owner_key))
+
+        binds_count = Ecto.Query.Builder.count_binds(join_query)
+
+        join_query
+        |> Ecto.Association.combine_joins_query(assoc.where, 0)
+        |> Ecto.Association.combine_joins_query(assoc.join_where, binds_count - 1)
       end
 
       defp build_preload_lateral_query(
@@ -739,24 +773,38 @@ if Code.ensure_loaded?(Ecto) do
            ) do
         [{owner_join_key, owner_key}, {related_join_key, related_key}] = assoc.join_keys
 
-        query
-        |> join(:inner, [..., x], y in ^assoc.join_through,
-          on: field(x, ^related_key) == field(y, ^related_join_key)
-        )
-        |> where([..., x], field(x, ^owner_join_key) == field(parent_as(:parent), ^owner_key))
+        join_query =
+          query
+          |> join(:inner, [..., x], y in ^assoc.join_through,
+            on: field(x, ^related_key) == field(y, ^related_join_key)
+          )
+          |> where([..., x], field(x, ^owner_join_key) == field(parent_as(:parent), ^owner_key))
+
+        binds_count = Ecto.Query.Builder.count_binds(join_query)
+
+        join_query
+        |> Ecto.Association.combine_joins_query(assoc.where, binds_count - 2)
+        |> Ecto.Association.combine_joins_query(assoc.join_where, binds_count - 1)
       end
 
       defp build_preload_lateral_query([assoc], query, :join_first) do
         query
         |> where([x], field(x, ^assoc.related_key) == field(parent_as(:parent), ^assoc.owner_key))
+        |> Ecto.Association.combine_assoc_query(assoc.where)
       end
 
       defp build_preload_lateral_query([assoc], query, :join_last) do
-        query
-        |> where(
-          [..., x],
-          field(x, ^assoc.related_key) == field(parent_as(:parent), ^assoc.owner_key)
-        )
+        join_query =
+          query
+          |> where(
+            [..., x],
+            field(x, ^assoc.related_key) == field(parent_as(:parent), ^assoc.owner_key)
+          )
+
+        binds_count = Ecto.Query.Builder.count_binds(join_query)
+
+        join_query
+        |> Ecto.Association.combine_joins_query(assoc.where, binds_count - 1)
       end
 
       defp build_preload_lateral_query(
@@ -766,7 +814,7 @@ if Code.ensure_loaded?(Ecto) do
            ) do
         [{owner_join_key, owner_key}, {related_join_key, related_key}] = assoc.join_keys
 
-        query =
+        join_query =
           query
           |> join(:inner, [x], y in ^assoc.join_through,
             on: field(x, ^related_key) == field(y, ^related_join_key)
@@ -774,6 +822,13 @@ if Code.ensure_loaded?(Ecto) do
           |> join(:inner, [..., x], y in ^assoc.owner,
             on: field(x, ^owner_join_key) == field(y, ^owner_key)
           )
+
+        binds_count = Ecto.Query.Builder.count_binds(join_query)
+
+        query =
+          join_query
+          |> Ecto.Association.combine_joins_query(assoc.where, 0)
+          |> Ecto.Association.combine_joins_query(assoc.join_where, binds_count - 2)
 
         build_preload_lateral_query(rest, query, :join_last)
       end
@@ -785,7 +840,7 @@ if Code.ensure_loaded?(Ecto) do
            ) do
         [{owner_join_key, owner_key}, {related_join_key, related_key}] = assoc.join_keys
 
-        query =
+        join_query =
           query
           |> join(:inner, [..., x], y in ^assoc.join_through,
             on: field(x, ^related_key) == field(y, ^related_join_key)
@@ -794,27 +849,46 @@ if Code.ensure_loaded?(Ecto) do
             on: field(x, ^owner_join_key) == field(y, ^owner_key)
           )
 
+        binds_count = Ecto.Query.Builder.count_binds(join_query)
+
+        query =
+          join_query
+          |> Ecto.Association.combine_joins_query(assoc.where, binds_count - 3)
+          |> Ecto.Association.combine_joins_query(assoc.join_where, binds_count - 2)
+
         build_preload_lateral_query(rest, query, :join_last)
       end
 
-      defp build_preload_lateral_query([assoc | rest], query, :join_first) do
+      defp build_preload_lateral_query(
+             [assoc | rest],
+             query,
+             :join_first
+           ) do
         query =
           query
           |> join(:inner, [x], y in ^assoc.owner,
             on: field(x, ^assoc.related_key) == field(y, ^assoc.owner_key)
           )
+          |> Ecto.Association.combine_joins_query(assoc.where, 0)
 
         build_preload_lateral_query(rest, query, :join_last)
       end
 
-      defp build_preload_lateral_query([assoc | rest], query, :join_last) do
-        query =
+      defp build_preload_lateral_query(
+             [assoc | rest],
+             query,
+             :join_last
+           ) do
+        binds_count = Ecto.Query.Builder.count_binds(query)
+
+        join_query =
           query
+          |> Ecto.Association.combine_joins_query(assoc.where, binds_count - 1)
           |> join(:inner, [..., x], y in ^assoc.owner,
             on: field(x, ^assoc.related_key) == field(y, ^assoc.owner_key)
           )
 
-        build_preload_lateral_query(rest, query, :join_last)
+        build_preload_lateral_query(rest, join_query, :join_last)
       end
 
       defp maybe_distinct(query, [%Ecto.Association.Has{}, %Ecto.Association.BelongsTo{} | _]) do

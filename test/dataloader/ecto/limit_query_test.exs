@@ -33,6 +33,7 @@ defmodule Dataloader.LimitQueryTest do
     |> having(count() >= ^n)
     |> order_by(^order_by)
     |> limit(^limit)
+    |> preload(likes: :user)
   end
 
   defp query(schema, %{limit: limit, order_by: order_by}, test_pid) do
@@ -212,7 +213,9 @@ defmodule Dataloader.LimitQueryTest do
       |> Dataloader.load_many(Test, args, [user1, user2])
       |> Dataloader.run()
 
-    assert [post2] = Dataloader.get(loader, Test, args, user1)
-    assert [post3] = Dataloader.get(loader, Test, args, user2)
+    assert [p1 = %{title: "bar"}] = Dataloader.get(loader, Test, args, user1)
+    assert [p2 = %{title: "baz"}] = Dataloader.get(loader, Test, args, user2)
+    assert [%{user: %{username: "Bruce Williams"}}] = p1.likes
+    assert [%{user: %{username: "Ben Wilson"}}] = p2.likes
   end
 end
