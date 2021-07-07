@@ -456,4 +456,34 @@ defmodule Dataloader.EctoTest do
       Dataloader.get(loader, Timeout, User, user.id)
     end
   end
+
+  test "when there are many batches (more than 32)" do
+    source =
+      Dataloader.Ecto.new(
+        Repo,
+        query: fn queryable, _ ->
+          queryable
+        end
+      )
+
+    loader =
+      Dataloader.new()
+      |> Dataloader.add_source(Test, source)
+
+    users =
+      for x <- 0..50 do
+        %User{username: "Ben Wilson #{x}"} |> Repo.insert!()
+      end
+
+    loader =
+      users
+      |> Enum.reduce(loader, fn user, loader ->
+        # Force a batch per user by adding id to batch key
+        Dataloader.load(loader, Test, {User, id: user.id}, user.id)
+      end)
+      |> Dataloader.run()
+
+    assert Enum.map(users, &Dataloader.get(loader, Test, {User, id: &1.id}, &1.id)) ==
+             users
+  end
 end
