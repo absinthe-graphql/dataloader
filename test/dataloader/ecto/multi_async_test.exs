@@ -1,0 +1,48 @@
+defmodule Dataloader.Ecto.MultiAsyncTest do
+  use ExUnit.Case, async: true
+
+  alias Dataloader.User
+  alias Dataloader.TestRepo, as: Repo
+
+  setup do
+    :ok = Ecto.Adapters.SQL.Sandbox.checkout(Repo)
+
+    test_pid = self()
+
+    source =
+      Dataloader.Ecto.new(
+        Repo,
+        query: &query(&1, &2, test_pid)
+      )
+
+    loader =
+      Dataloader.new()
+      |> Dataloader.add_source(Test, source)
+
+    {:ok, loader: loader}
+  end
+
+  defp query(schema, _params, test_pid) do
+    send(test_pid, :querying)
+
+    schema
+  end
+
+  test "loads data", %{loader: loader} do
+    user =
+      %User{username: "Ben Wilson"}
+      |> Repo.insert!()
+
+    result =
+      Ecto.Multi.new()
+      |> Ecto.Multi.run(:loader, fn _, _ ->
+        loader
+        |> Dataloader.load(Test, User, user.id)
+        |> Dataloader.run()
+      end)
+      |> Repo.transaction()
+
+    assert {:ok, %{loader: loader}} = result
+    assert user == Dataloader.get(loader, Test, User, user.id)
+  end
+end
