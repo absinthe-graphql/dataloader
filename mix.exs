@@ -2,7 +2,7 @@ defmodule Dataloader.Mixfile do
   use Mix.Project
 
   @source_url "https://github.com/absinthe-graphql/dataloader"
-  @version "1.0.8"
+  @version "1.0.9"
 
   def project do
     [
