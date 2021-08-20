@@ -3,16 +3,16 @@
 ## v1.0.9 2021-08-20
 
 - Improvement: KV data sources now pass opts to `Dataloader.run_tasks/3`
-  ([#94](https::/github.com/absinthe-graphql/dataloader/pull/94))
+  ([#94](https://github.com/absinthe-graphql/dataloader/pull/94))
 - Improvement: Add support for `where` and `join_where` in `has_many` and
   `many_to_many` associations
-  ([#119](https::/github.com/absinthe-graphql/dataloader/pull/119))
+  ([#119](https://github.com/absinthe-graphql/dataloader/pull/119))
 - Bug Fix: Avoid preloads in lateral subqueries
-  ([#98](https::/github.com/absinthe-graphql/dataloader/pull/98))
+  ([#98](https://github.com/absinthe-graphql/dataloader/pull/98))
 - Bug Fix: Use existing database prefix when preloading via lateral join
-  ([#107](https::/github.com/absinthe-graphql/dataloader/pull/107))
+  ([#107](https://github.com/absinthe-graphql/dataloader/pull/107))
 - Bug Fix: Fix issue with `Dataloader.Ecto.run_batches/1`
-  ([#126](https::/github.com/absinthe-graphql/dataloader/pull/126))
+  ([#126](https://github.com/absinthe-graphql/dataloader/pull/126))
 - Doc improvements
 
 ## v1.0.8 - 2020-08-25
