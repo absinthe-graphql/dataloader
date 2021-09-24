@@ -37,9 +37,12 @@ defmodule Dataloader.Ecto.MultiSyncTest do
     result =
       Ecto.Multi.new()
       |> Ecto.Multi.run(:loader, fn _, _ ->
-        loader
-        |> Dataloader.load(Test, User, user.id)
-        |> Dataloader.run()
+        loader =
+          loader
+          |> Dataloader.load(Test, User, user.id)
+          |> Dataloader.run()
+
+        {:ok, loader}
       end)
       |> Repo.transaction()
 
