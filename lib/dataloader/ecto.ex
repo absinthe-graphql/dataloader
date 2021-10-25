@@ -282,6 +282,7 @@ if Code.ensure_loaded?(Ecto) do
             | {:repo_opts, repo_opts}
             | {:timeout, pos_integer}
             | {:run_batch, batch_fun()}
+            | {:async, boolean()}
 
     import Ecto.Query
 
@@ -306,7 +307,9 @@ if Code.ensure_loaded?(Ecto) do
         |> Keyword.put_new(:query, &query/2)
         |> Keyword.put_new(:run_batch, &run_batch(repo, &1, &2, &3, &4, &5))
 
-      opts = Keyword.take(opts, [:timeout])
+      opts =
+        Keyword.take(opts, [:timeout, :async])
+        |> Keyword.put_new(:async, true)
 
       %__MODULE__{repo: repo, options: opts}
       |> struct(data)
@@ -390,7 +393,12 @@ if Code.ensure_loaded?(Ecto) do
 
     defimpl Dataloader.Source do
       def run(source) do
-        results = Dataloader.async_safely(__MODULE__, :run_batches, [source])
+        results =
+          if source.options[:async] do
+            Dataloader.async_safely(__MODULE__, :run_batches, [source])
+          else
+            run_batches(source)
+          end
 
         results =
           Map.merge(source.results, results, fn _, {:ok, v1}, {:ok, v2} ->
@@ -603,25 +611,32 @@ if Code.ensure_loaded?(Ecto) do
         batches = Enum.to_list(source.batches)
 
         results =
-          batches
-          |> Task.async_stream(
-            fn batch ->
-              id = :erlang.unique_integer()
-              system_time = System.system_time()
-              start_time_mono = System.monotonic_time()
+          if source.options[:async] do
+            batches
+            |> Task.async_stream(
+              fn batch ->
+                id = :erlang.unique_integer()
+                system_time = System.system_time()
+                start_time_mono = System.monotonic_time()
 
-              emit_start_event(id, system_time, batch)
-              batch_result = run_batch(batch, source)
-              emit_stop_event(id, start_time_mono, batch)
+                emit_start_event(id, system_time, batch)
+                batch_result = run_batch(batch, source)
+                emit_stop_event(id, start_time_mono, batch)
 
-              batch_result
-            end,
-            options
-          )
-          |> Enum.map(fn
-            {:ok, {_key, result}} -> {:ok, result}
-            {:exit, reason} -> {:error, reason}
-          end)
+                batch_result
+              end,
+              options
+            )
+            |> Enum.map(fn
+              {:ok, {_key, result}} -> {:ok, result}
+              {:exit, reason} -> {:error, reason}
+            end)
+          else
+            Enum.map(batches, &run_batch(&1, source))
+            |> Enum.map(fn
+              {_key, result} -> {:ok, result}
+            end)
+          end
 
         batches
         |> Enum.map(fn {key, _set} -> key end)

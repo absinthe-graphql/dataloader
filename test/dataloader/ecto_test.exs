@@ -486,4 +486,28 @@ defmodule Dataloader.EctoTest do
     assert Enum.map(users, &Dataloader.get(loader, Test, {User, id: &1.id}, &1.id)) ==
              users
   end
+
+  test "run inside transaction" do
+    user = %User{username: "Ben Wilson"} |> Repo.insert!()
+
+    source = Dataloader.Ecto.new(Repo, async: false)
+    loader =
+      Dataloader.new(async: false)
+      |> Dataloader.add_source(Test, source)
+
+    Dataloader.load(loader, Test, User, user.id)
+
+    Repo.transaction(fn ->
+      loader =
+        loader
+        |> Dataloader.load(Test, User, user.id)
+        |> Dataloader.run()
+
+      loaded =
+        loader
+        |> Dataloader.get(Test, User, user.id)
+
+      assert ^user = loaded
+    end)
+  end
 end

@@ -92,7 +92,7 @@ defmodule Dataloader do
           options: [option]
         }
 
-  @type option :: {:timeout, pos_integer} | {:get_policy, atom()}
+  @type option :: {:timeout, pos_integer} | {:get_policy, atom()} | {:async, boolean()}
   @type source_name :: any
 
   @default_timeout 15_000
@@ -108,7 +108,10 @@ defmodule Dataloader do
   @spec new([option]) :: t
   def new(opts \\ []) do
     opts =
-      [get_policy: @default_get_policy]
+      [
+        get_policy: @default_get_policy,
+        async: true
+      ]
       |> Keyword.merge(opts)
 
     %__MODULE__{options: opts}
@@ -150,16 +153,20 @@ defmodule Dataloader do
       emit_start_event(id, system_time, dataloader)
 
       sources =
-        async_safely(__MODULE__, :run_tasks, [
-          dataloader.sources,
-          fun,
-          [timeout: dataloader_timeout(dataloader)]
-        ])
-        |> Enum.map(fn
-          {_source, {:ok, {name, source}}} -> {name, source}
-          {_source, {:error, reason}} -> {:error, reason}
-        end)
-        |> Map.new()
+        if dataloader.options[:async] do
+          async_safely(__MODULE__, :run_tasks, [
+            dataloader.sources,
+            fun,
+            [timeout: dataloader_timeout(dataloader)]
+          ])
+          |> Enum.map(fn
+            {_source, {:ok, {name, source}}} -> {name, source}
+            {_source, {:error, reason}} -> {:error, reason}
+          end)
+          |> Map.new()
+        else
+          Enum.map(dataloader.sources, fun)
+        end
 
       updated_dataloader = %{dataloader | sources: sources}
 
