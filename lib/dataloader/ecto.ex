@@ -170,7 +170,7 @@ if Code.ensure_loaded?(Ecto) do
       Dataloader.Ecto.run_batch(Repo, queryable, query, col, inputs, repo_opts)
     end
     ```
-    This function is suplied with a list of users, does a query and will return
+    This function is supplied with a list of users, does a query and will return
     the post count for each of user. If the user id is not found in the resultset,
     because the user has no posts, we return a post count of 0.
 
