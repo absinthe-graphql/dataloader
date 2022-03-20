@@ -61,7 +61,10 @@ defmodule Dataloader.Mixfile do
   defp deps do
     [
       {:telemetry, "~> 1.0 or ~> 0.4"},
-      {:ecto, ">= 3.4.3 and < 4.0.0", optional: true},
+      {:ecto, "~> 3.7",
+       git: "https://github.com/soundmonster/ecto.git",
+       branch: "composite_foreign_keys",
+       override: true},
       {:ecto_sql, "~> 3.0", optional: true, only: :test},
       {:postgrex, "~> 0.14", only: :test, runtime: false},
       {:dialyxir, "~> 1.0.0", only: [:dev, :test], runtime: false},
