@@ -752,10 +752,7 @@ if Code.ensure_loaded?(Ecto) do
              query,
              :join_first
            ) do
-        [
-          {owner_join_key, owner_key},
-          {related_join_key, related_key}
-        ] = get_join_keys(assoc)
+        [{owner_join_key, owner_key}, {related_join_key, related_key}] = get_join_keys(assoc)
 
         join_query =
           query
@@ -779,10 +776,7 @@ if Code.ensure_loaded?(Ecto) do
              query,
              :join_last
            ) do
-        [
-          {owner_join_key, owner_key},
-          {related_join_key, related_key}
-        ] = get_join_keys(assoc)
+        [{owner_join_key, owner_key}, {related_join_key, related_key}] = get_join_keys(assoc)
 
         join_query =
           query
@@ -879,10 +873,7 @@ if Code.ensure_loaded?(Ecto) do
              query,
              :join_first
            ) do
-        [
-          {owner_join_key, owner_key},
-          {related_join_key, related_key}
-        ] = get_join_keys(assoc)
+        [{owner_join_key, owner_key}, {related_join_key, related_key}] = get_join_keys(assoc)
 
         join_query =
           query
@@ -908,10 +899,7 @@ if Code.ensure_loaded?(Ecto) do
              query,
              :join_last
            ) do
-        [
-          {owner_join_key, owner_key},
-          {related_join_key, related_key}
-        ] = get_join_keys(assoc)
+        [{owner_join_key, owner_key}, {related_join_key, related_key}] = get_join_keys(assoc)
 
         join_query =
           query
@@ -1016,10 +1004,7 @@ if Code.ensure_loaded?(Ecto) do
 
       defp get_join_keys(%Ecto.Association.ManyToMany{join_keys: join_keys}) do
         case join_keys do
-          [
-            [{owner_join_key, owner_key}],
-            [{related_join_key, related_key}]
-          ] ->
+          [[{owner_join_key, owner_key}], [{related_join_key, related_key}]] ->
             [{owner_join_key, owner_key}, {related_join_key, related_key}]
 
           join_keys ->
