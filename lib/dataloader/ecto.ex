@@ -752,7 +752,10 @@ if Code.ensure_loaded?(Ecto) do
              query,
              :join_first
            ) do
-        [{owner_join_key, owner_key}, {related_join_key, related_key}] = get_join_keys(assoc)
+        [
+          {owner_join_key, owner_key},
+          {related_join_key, related_key}
+        ] = get_join_keys(assoc)
 
         join_query =
           query
@@ -776,7 +779,10 @@ if Code.ensure_loaded?(Ecto) do
              query,
              :join_last
            ) do
-        [{owner_join_key, owner_key}, {related_join_key, related_key}] = get_join_keys(assoc)
+        [
+          {owner_join_key, owner_key},
+          {related_join_key, related_key}
+        ] = get_join_keys(assoc)
 
         join_query =
           query
@@ -873,7 +879,10 @@ if Code.ensure_loaded?(Ecto) do
              query,
              :join_first
            ) do
-        [{owner_join_key, owner_key}, {related_join_key, related_key}] = get_join_keys(assoc)
+        [
+          {owner_join_key, owner_key},
+          {related_join_key, related_key}
+        ] = get_join_keys(assoc)
 
         join_query =
           query
@@ -899,7 +908,10 @@ if Code.ensure_loaded?(Ecto) do
              query,
              :join_last
            ) do
-        [{owner_join_key, owner_key}, {related_join_key, related_key}] = get_join_keys(assoc)
+        [
+          {owner_join_key, owner_key},
+          {related_join_key, related_key}
+        ] = get_join_keys(assoc)
 
         join_query =
           query
@@ -1002,22 +1014,17 @@ if Code.ensure_loaded?(Ecto) do
         build_preload_lateral_query(rest, join_query, :join_last)
       end
 
-      defp get_join_keys(%{
-             join_keys: [
-               {owner_join_key, owner_key},
-               {related_join_key, related_key}
-             ]
-           }) do
-        [{owner_join_key, owner_key}, {related_join_key, related_key}]
-      end
+      defp get_join_keys(%Ecto.Association.ManyToMany{join_keys: join_keys}) do
+        case join_keys do
+          [
+            [{owner_join_key, owner_key}],
+            [{related_join_key, related_key}]
+          ] ->
+            [{owner_join_key, owner_key}, {related_join_key, related_key}]
 
-      defp get_join_keys(%{
-             join_keys: [
-               [{owner_join_key, owner_key}],
-               [{related_join_key, related_key}]
-             ]
-           }) do
-        [{owner_join_key, owner_key}, {related_join_key, related_key}]
+          join_keys ->
+            join_keys
+        end
       end
 
       defp maybe_distinct(query, [%Ecto.Association.Has{}, %Ecto.Association.BelongsTo{} | _]) do
