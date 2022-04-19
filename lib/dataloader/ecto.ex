@@ -894,10 +894,15 @@ if Code.ensure_loaded?(Ecto) do
       end
 
       defp maybe_distinct(query, [%Ecto.Association.Has{}, %Ecto.Association.BelongsTo{} | _]) do
-        distinct(query, true)
+        %Ecto.Query{distinct: dist} = query
+        if dist, do: query, else: distinct(query, true)
       end
 
-      defp maybe_distinct(query, [%Ecto.Association.ManyToMany{} | _]), do: distinct(query, true)
+      defp maybe_distinct(query, [%Ecto.Association.ManyToMany{} | _]) do
+        %Ecto.Query{distinct: dist} = query
+        if dist, do: query, else: distinct(query, true)
+      end
+
       defp maybe_distinct(query, [_assoc | rest]), do: maybe_distinct(query, rest)
       defp maybe_distinct(query, []), do: query
 
