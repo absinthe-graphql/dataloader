@@ -34,6 +34,7 @@ defmodule Dataloader.LimitQueryTest do
     |> order_by(^order_by)
     |> limit(^limit)
     |> preload(likes: :user)
+    |> distinct(true)
   end
 
   defp query(schema, %{limit: limit, order_by: order_by}, test_pid) do
@@ -42,6 +43,7 @@ defmodule Dataloader.LimitQueryTest do
     schema
     |> order_by(^order_by)
     |> limit(^limit)
+    |> distinct(true)
   end
 
   test "Query limit does not apply globally", %{loader: loader} do
