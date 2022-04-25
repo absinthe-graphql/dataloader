@@ -32,10 +32,19 @@ defmodule Dataloader.EctoTest do
   end
 
   defp query(User, args, test_pid) do
+    {sort_order, args} = Map.pop(args, :sort_order)
+    {sort_by, args} = Map.pop(args, :sort_by)
     send(test_pid, :querying)
 
     User
     |> where(^Enum.to_list(args))
+    |> then(fn user ->
+      if is_nil(sort_by) or is_nil(sort_order) do
+        user
+      else
+        order_by(user, {^sort_order, ^sort_by})
+      end
+    end)
   end
 
   defp query(queryable, _args, test_pid) do
@@ -322,6 +331,46 @@ defmodule Dataloader.EctoTest do
         |> Dataloader.get(Test, :liking_users, post1)
 
       assert length(loaded_posts) == 2
+    end
+
+    test "order_by works", %{loader: loader} do
+      user1 = %User{username: "Ben Wilson"} |> Repo.insert!()
+      user2 = %User{username: "Bruce Williams"} |> Repo.insert!()
+
+      post1 = %Post{user_id: user1.id} |> Repo.insert!()
+
+      [
+        %Like{user_id: user1.id, post_id: post1.id},
+        %Like{user_id: user2.id, post_id: post1.id}
+      ]
+      |> Enum.map(&Repo.insert/1)
+
+      for {sort_order, expected_usernames} <- [
+            {:asc, ["Ben Wilson", "Bruce Williams"]},
+            {:desc, ["Bruce Williams", "Ben Wilson"]}
+          ] do
+        loader =
+          loader
+          |> Dataloader.load(
+            Test,
+            {:liking_users, [sort_order: sort_order, sort_by: :username]},
+            post1
+          )
+          |> Dataloader.run()
+
+        loaded_posts =
+          loader
+          |> Dataloader.get(
+            Test,
+            {:liking_users, [sort_order: sort_order, sort_by: :username]},
+            post1
+          )
+
+        ordered_usernames = Enum.map(loaded_posts, & &1.username)
+
+        assert ordered_usernames == expected_usernames,
+               "got #{inspect(ordered_usernames)} but was expecting #{inspect(expected_usernames)} for sort_order #{sort_order}"
+      end
     end
 
     test "works with query filtering", %{loader: loader} do
