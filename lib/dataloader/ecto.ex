@@ -752,14 +752,17 @@ if Code.ensure_loaded?(Ecto) do
              query,
              :join_first
            ) do
-        [{owner_join_key, owner_key}, {related_join_key, related_key}] = assoc.join_keys
+        [{owner_join_key, owner_key}, {related_join_key, related_key}] = get_join_keys(assoc)
 
         join_query =
           query
           |> join(:inner, [x], y in ^assoc.join_through,
             on: field(x, ^related_key) == field(y, ^related_join_key)
           )
-          |> where([..., x], field(x, ^owner_join_key) == field(parent_as(:parent), ^owner_key))
+          |> where(
+            [..., x],
+            field(x, ^owner_join_key) == field(parent_as(:parent), ^owner_key)
+          )
 
         binds_count = Ecto.Query.Builder.count_binds(join_query)
 
@@ -773,14 +776,17 @@ if Code.ensure_loaded?(Ecto) do
              query,
              :join_last
            ) do
-        [{owner_join_key, owner_key}, {related_join_key, related_key}] = assoc.join_keys
+        [{owner_join_key, owner_key}, {related_join_key, related_key}] = get_join_keys(assoc)
 
         join_query =
           query
           |> join(:inner, [..., x], y in ^assoc.join_through,
             on: field(x, ^related_key) == field(y, ^related_join_key)
           )
-          |> where([..., x], field(x, ^owner_join_key) == field(parent_as(:parent), ^owner_key))
+          |> where(
+            [..., x],
+            field(x, ^owner_join_key) == field(parent_as(:parent), ^owner_key)
+          )
 
         binds_count = Ecto.Query.Builder.count_binds(join_query)
 
@@ -790,18 +796,71 @@ if Code.ensure_loaded?(Ecto) do
       end
 
       defp build_preload_lateral_query([assoc], query, :join_first) do
-        query
-        |> where([x], field(x, ^assoc.related_key) == field(parent_as(:parent), ^assoc.owner_key))
-        |> Ecto.Association.combine_assoc_query(assoc.where)
+        case assoc do
+          %{
+            related_key: [related_key_1, related_key_2],
+            owner_key: [owner_key_1, owner_key_2]
+          } ->
+            query
+            |> where(
+              [x],
+              field(x, ^related_key_1) == field(parent_as(:parent), ^owner_key_1) and
+                field(x, ^related_key_2) == field(parent_as(:parent), ^owner_key_2)
+            )
+            |> Ecto.Association.combine_assoc_query(assoc.where)
+
+          %{
+            related_key: [related_key],
+            owner_key: [owner_key]
+          } ->
+            query
+            |> where(
+              [x],
+              field(x, ^related_key) == field(parent_as(:parent), ^owner_key)
+            )
+            |> Ecto.Association.combine_assoc_query(assoc.where)
+
+          assoc ->
+            query
+            |> where(
+              [x],
+              field(x, ^assoc.related_key) == field(parent_as(:parent), ^assoc.owner_key)
+            )
+            |> Ecto.Association.combine_assoc_query(assoc.where)
+        end
       end
 
       defp build_preload_lateral_query([assoc], query, :join_last) do
         join_query =
-          query
-          |> where(
-            [..., x],
-            field(x, ^assoc.related_key) == field(parent_as(:parent), ^assoc.owner_key)
-          )
+          case assoc do
+            %{
+              related_key: [related_key_1, related_key_2],
+              owner_key: [owner_key_1, owner_key_2]
+            } ->
+              query
+              |> where(
+                [..., x],
+                field(x, ^related_key_1) == field(parent_as(:parent), ^owner_key_1) and
+                  field(x, ^related_key_2) == field(parent_as(:parent), ^owner_key_2)
+              )
+
+            %{
+              related_key: [related_key],
+              owner_key: [owner_key]
+            } ->
+              query
+              |> where(
+                [..., x],
+                field(x, ^related_key) == field(parent_as(:parent), ^owner_key)
+              )
+
+            assoc ->
+              query
+              |> where(
+                [..., x],
+                field(x, ^assoc.related_key) == field(parent_as(:parent), ^assoc.owner_key)
+              )
+          end
 
         binds_count = Ecto.Query.Builder.count_binds(join_query)
 
@@ -814,7 +873,7 @@ if Code.ensure_loaded?(Ecto) do
              query,
              :join_first
            ) do
-        [{owner_join_key, owner_key}, {related_join_key, related_key}] = assoc.join_keys
+        [{owner_join_key, owner_key}, {related_join_key, related_key}] = get_join_keys(assoc)
 
         join_query =
           query
@@ -840,7 +899,7 @@ if Code.ensure_loaded?(Ecto) do
              query,
              :join_last
            ) do
-        [{owner_join_key, owner_key}, {related_join_key, related_key}] = assoc.join_keys
+        [{owner_join_key, owner_key}, {related_join_key, related_key}] = get_join_keys(assoc)
 
         join_query =
           query
@@ -867,11 +926,36 @@ if Code.ensure_loaded?(Ecto) do
              :join_first
            ) do
         query =
-          query
-          |> join(:inner, [x], y in ^assoc.owner,
-            on: field(x, ^assoc.related_key) == field(y, ^assoc.owner_key)
-          )
-          |> Ecto.Association.combine_joins_query(assoc.where, 0)
+          case assoc do
+            %{
+              related_key: [related_key_1, related_key_2],
+              owner_key: [owner_key_1, owner_key_2]
+            } ->
+              query
+              |> join(:inner, [x], y in ^assoc.owner,
+                on:
+                  field(x, ^related_key_1) == field(y, ^owner_key_1) and
+                    field(x, ^related_key_2) == field(y, ^owner_key_2)
+              )
+              |> Ecto.Association.combine_joins_query(assoc.where, 0)
+
+            %{
+              related_key: [related_key],
+              owner_key: [owner_key]
+            } ->
+              query
+              |> join(:inner, [x], y in ^assoc.owner,
+                on: field(x, ^related_key) == field(y, ^owner_key)
+              )
+              |> Ecto.Association.combine_joins_query(assoc.where, 0)
+
+            assoc ->
+              query
+              |> join(:inner, [x], y in ^assoc.owner,
+                on: field(x, ^assoc.related_key) == field(y, ^assoc.owner_key)
+              )
+              |> Ecto.Association.combine_joins_query(assoc.where, 0)
+          end
 
         build_preload_lateral_query(rest, query, :join_last)
       end
@@ -884,13 +968,48 @@ if Code.ensure_loaded?(Ecto) do
         binds_count = Ecto.Query.Builder.count_binds(query)
 
         join_query =
-          query
-          |> Ecto.Association.combine_joins_query(assoc.where, binds_count - 1)
-          |> join(:inner, [..., x], y in ^assoc.owner,
-            on: field(x, ^assoc.related_key) == field(y, ^assoc.owner_key)
-          )
+          case assoc do
+            %{
+              related_key: [related_key_1, related_key_2],
+              owner_key: [owner_key_1, owner_key_2]
+            } ->
+              query
+              |> Ecto.Association.combine_joins_query(assoc.where, binds_count - 1)
+              |> join(:inner, [..., x], y in ^assoc.owner,
+                on:
+                  field(x, ^related_key_1) == field(y, ^owner_key_1) and
+                    field(x, ^related_key_2) == field(y, ^owner_key_2)
+              )
+
+            %{
+              related_key: [related_key],
+              owner_key: [owner_key]
+            } ->
+              query
+              |> Ecto.Association.combine_joins_query(assoc.where, binds_count - 1)
+              |> join(:inner, [..., x], y in ^assoc.owner,
+                on: field(x, ^related_key) == field(y, ^owner_key)
+              )
+
+            assoc ->
+              query
+              |> Ecto.Association.combine_joins_query(assoc.where, binds_count - 1)
+              |> join(:inner, [..., x], y in ^assoc.owner,
+                on: field(x, ^assoc.related_key) == field(y, ^assoc.owner_key)
+              )
+          end
 
         build_preload_lateral_query(rest, join_query, :join_last)
+      end
+
+      defp get_join_keys(%Ecto.Association.ManyToMany{join_keys: join_keys}) do
+        case join_keys do
+          [[{owner_join_key, owner_key}], [{related_join_key, related_key}]] ->
+            [{owner_join_key, owner_key}, {related_join_key, related_key}]
+
+          join_keys ->
+            join_keys
+        end
       end
 
       defp maybe_distinct(query, [%Ecto.Association.Has{}, %Ecto.Association.BelongsTo{} | _]) do
