@@ -38,13 +38,13 @@ defmodule Dataloader.EctoTest do
 
     User
     |> where(^Enum.to_list(args))
-    |> then(fn user ->
-      if is_nil(sort_by) or is_nil(sort_order) do
-        user
-      else
-        order_by(user, {^sort_order, ^sort_by})
-      end
-    end)
+    |> (fn user ->
+          if is_nil(sort_by) or is_nil(sort_order) do
+            user
+          else
+            order_by(user, {^sort_order, ^sort_by})
+          end
+        end).()
   end
 
   defp query(queryable, _args, test_pid) do

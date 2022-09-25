@@ -1,4 +1,4 @@
-import Config
+use Mix.Config
 
 config :dataloader, Dataloader.TestRepo,
   hostname: "localhost",
