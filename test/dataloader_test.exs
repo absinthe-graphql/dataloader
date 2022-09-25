@@ -8,7 +8,11 @@ defmodule DataloaderTest do
     users: [
       [id: "ben", username: "Ben Wilson"],
       [id: "bruce", username: "Bruce Williams"]
-    ]
+    ],
+    results: %{
+      succes_data: {:ok, :value},
+      error_data: {:error, :value}
+    }
   ]
 
   defp query(batch_key, ids = %MapSet{}) do
@@ -19,12 +23,18 @@ defmodule DataloaderTest do
 
   defp query(_batch_key, "explode"), do: raise("hell")
 
-  defp query(batch_key, id) do
+  defp query(:users, id) do
     item =
-      @data[batch_key]
+      @data[:users]
       |> Enum.find(fn data -> data[:id] == id end)
 
     {id, item}
+  end
+
+  defp query(:results, key) do
+    item = @data[:results] |> Map.get(key)
+
+    {key, item}
   end
 
   setup do
@@ -230,6 +240,26 @@ defmodule DataloaderTest do
         |> Dataloader.get(:test, :users, "ben")
 
       assert result == {:ok, [id: "ben", username: "Ben Wilson"]}
+    end
+
+    test "get/4 returns an {:ok, value} tuple when data is value tuple", %{loader: loader} do
+      result =
+        loader
+        |> Dataloader.load(:test, :results, :succes_data)
+        |> Dataloader.run()
+        |> Dataloader.get(:test, :results, :succes_data)
+
+      assert result == {:ok, :value}
+    end
+
+    test "get/4 returns an {:ok, value} tuple when data is error tuple", %{loader: loader} do
+      result =
+        loader
+        |> Dataloader.load(:test, :results, :error_data)
+        |> Dataloader.run()
+        |> Dataloader.get(:test, :results, :error_data)
+
+      assert result == {:error, :value}
     end
 
     test "get_many/4 returns a list of {:ok, value} tuples when successful", %{loader: loader} do
