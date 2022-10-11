@@ -252,7 +252,7 @@ defmodule DataloaderTest do
       assert result == {:ok, :value}
     end
 
-    test "get/4 returns an {:ok, value} tuple when data is error tuple", %{loader: loader} do
+    test "get/4 returns an {:error, value} tuple when data is error tuple", %{loader: loader} do
       result =
         loader
         |> Dataloader.load(:test, :results, :error_data)
