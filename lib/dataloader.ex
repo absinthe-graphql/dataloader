@@ -154,14 +154,18 @@ defmodule Dataloader do
         |> Enum.split_with(fn {_name, source} -> Dataloader.Source.async?(source) end)
 
       async_source_results =
-        async_safely(__MODULE__, :run_tasks, [
-          async_sources,
-          fun,
+        async_safely(
+          __MODULE__,
+          :run_tasks,
           [
-            timeout: dataloader_timeout(dataloader),
-            async?: true
-          ]
-        ])
+            async_sources,
+            fun,
+            [
+              timeout: dataloader_timeout(dataloader)
+            ]
+          ],
+          async?: true
+        )
 
       sync_source_results =
         async_safely(
@@ -171,8 +175,7 @@ defmodule Dataloader do
             sync_sources,
             fun,
             [
-              timeout: dataloader_timeout(dataloader),
-              async?: false
+              timeout: dataloader_timeout(dataloader)
             ]
           ],
           async?: false
