@@ -42,4 +42,10 @@ defprotocol Dataloader.Source do
   """
   @spec timeout(t) :: number
   def timeout(source)
+
+  @doc """
+  Returns wether or not the source should be running synchronously or asynchronously
+  """
+  @spec async?(t) :: boolean
+  def async?(source)
 end

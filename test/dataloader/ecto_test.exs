@@ -369,9 +369,7 @@ defmodule Dataloader.EctoTest do
         ordered_usernames = Enum.map(loaded_posts, & &1.username)
 
         assert ordered_usernames == expected_usernames,
-               "got #{inspect(ordered_usernames)} but was expecting #{inspect(expected_usernames)} for sort_order #{
-                 sort_order
-               }"
+               "got #{inspect(ordered_usernames)} but was expecting #{inspect(expected_usernames)} for sort_order #{sort_order}"
       end
     end
 
