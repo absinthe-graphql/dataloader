@@ -10,7 +10,7 @@ defmodule DataloaderTest do
       [id: "bruce", username: "Bruce Williams"]
     ],
     results: %{
-      succes_data: {:ok, :value},
+      success_data: {:ok, :value},
       error_data: {:error, :value}
     }
   ]
@@ -245,9 +245,9 @@ defmodule DataloaderTest do
     test "get/4 returns an {:ok, value} tuple when data is value tuple", %{loader: loader} do
       result =
         loader
-        |> Dataloader.load(:test, :results, :succes_data)
+        |> Dataloader.load(:test, :results, :success_data)
         |> Dataloader.run()
-        |> Dataloader.get(:test, :results, :succes_data)
+        |> Dataloader.get(:test, :results, :success_data)
 
       assert result == {:ok, :value}
     end
