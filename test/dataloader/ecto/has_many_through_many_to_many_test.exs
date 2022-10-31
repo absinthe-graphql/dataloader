@@ -164,7 +164,8 @@ defmodule Dataloader.Ecto.HasManyThroughManyToManyTest do
         |> Dataloader.load(Test, args, leaderboard)
         |> Dataloader.run()
 
-      assert [pic1, pic2] == Dataloader.get(loader, Test, args, leaderboard)
+      assert [pic1, pic2] ==
+               Dataloader.get(loader, Test, args, leaderboard) |> Enum.sort_by(& &1.id)
     end
 
     test "load has_many through many_to_many in second position - with where on target schema and join_where on assoc schema",
@@ -212,7 +213,8 @@ defmodule Dataloader.Ecto.HasManyThroughManyToManyTest do
         |> Dataloader.load(Test, args, leaderboard)
         |> Dataloader.run()
 
-      assert [like1, like2] == Dataloader.get(loader, Test, args, leaderboard)
+      assert [like1, like2] ==
+               Dataloader.get(loader, Test, args, leaderboard) |> Enum.sort_by(& &1.id)
     end
 
     test "load has_many through many_to_many in second position with third assoc - with where on target schema and join_where on assoc schema",

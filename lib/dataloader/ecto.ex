@@ -170,7 +170,7 @@ if Code.ensure_loaded?(Ecto) do
       Dataloader.Ecto.run_batch(Repo, queryable, query, col, inputs, repo_opts)
     end
     ```
-    This function is suplied with a list of users, does a query and will return
+    This function is supplied with a list of users, does a query and will return
     the post count for each of user. If the user id is not found in the resultset,
     because the user has no posts, we return a post count of 0.
 
@@ -390,7 +390,10 @@ if Code.ensure_loaded?(Ecto) do
 
     defimpl Dataloader.Source do
       def run(source) do
-        results = Dataloader.async_safely(__MODULE__, :run_batches, [source])
+        results =
+          Dataloader.async_safely(__MODULE__, :run_batches, [source],
+            async?: Dataloader.Source.async?(source)
+          )
 
         results =
           Map.merge(source.results, results, fn _, {:ok, v1}, {:ok, v2} ->
@@ -473,6 +476,10 @@ if Code.ensure_loaded?(Ecto) do
 
       def timeout(%{options: options}) do
         options[:timeout]
+      end
+
+      def async?(%{repo: repo}) do
+        not repo.in_transaction?()
       end
 
       defp chase_down_queryable([field], schema) do
@@ -604,7 +611,7 @@ if Code.ensure_loaded?(Ecto) do
 
         results =
           batches
-          |> Task.async_stream(
+          |> maybe_async_stream(
             fn batch ->
               id = :erlang.unique_integer()
               system_time = System.system_time()
@@ -616,7 +623,8 @@ if Code.ensure_loaded?(Ecto) do
 
               batch_result
             end,
-            options
+            options,
+            Dataloader.Source.async?(source)
           )
           |> Enum.map(fn
             {:ok, {_key, result}} -> {:ok, result}
@@ -627,6 +635,21 @@ if Code.ensure_loaded?(Ecto) do
         |> Enum.map(fn {key, _set} -> key end)
         |> Enum.zip(results)
         |> Map.new()
+      end
+
+      defp maybe_async_stream(batches, fun, options, true) do
+        Task.async_stream(batches, fun, options)
+      end
+
+      defp maybe_async_stream(batches, fun, _options, _) do
+        Enum.map(batches, fn batch ->
+          try do
+            {:ok, fun.(batch)}
+          rescue
+            e ->
+              {:exit, e}
+          end
+        end)
       end
 
       defp run_batch(
@@ -672,7 +695,7 @@ if Code.ensure_loaded?(Ecto) do
         records = records |> Enum.map(&Map.put(&1, field, empty))
 
         results =
-          if query.limit || query.offset do
+          if query.limit || query.offset || Enum.any?(query.order_bys) do
             records
             |> preload_lateral(field, query, source.repo, repo_opts)
           else
@@ -893,11 +916,13 @@ if Code.ensure_loaded?(Ecto) do
         build_preload_lateral_query(rest, join_query, :join_last)
       end
 
-      defp maybe_distinct(query, [%Ecto.Association.Has{}, %Ecto.Association.BelongsTo{} | _]) do
-        distinct(query, true)
-      end
+      defp maybe_distinct(%Ecto.Query{distinct: dist} = query, _) when dist, do: query
+
+      defp maybe_distinct(query, [%Ecto.Association.Has{}, %Ecto.Association.BelongsTo{} | _]),
+        do: distinct(query, true)
 
       defp maybe_distinct(query, [%Ecto.Association.ManyToMany{} | _]), do: distinct(query, true)
+
       defp maybe_distinct(query, [_assoc | rest]), do: maybe_distinct(query, rest)
       defp maybe_distinct(query, []), do: query
 

@@ -8,8 +8,7 @@
 [![Last Updated](https://img.shields.io/github/last-commit/absinthe-graphql/dataloader.svg)](https://github.com/absinthe-graphql/dataloader/commits/master)
 
 Dataloader provides an easy way efficiently load data in batches. It's inspired
-by https://github.com/facebook/dataloader, although it makes some small API
-changes to better suit Elixir use cases.
+by [https://github.com/facebook/dataloader](https://github.com/facebook/dataloader), although it makes some small API changes to better suit Elixir use cases.
 
 ## Installation
 

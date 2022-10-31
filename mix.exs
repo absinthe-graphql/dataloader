@@ -2,13 +2,13 @@ defmodule Dataloader.Mixfile do
   use Mix.Project
 
   @source_url "https://github.com/absinthe-graphql/dataloader"
-  @version "1.0.9"
+  @version "2.0.0-dev"
 
   def project do
     [
       app: :dataloader,
       version: @version,
-      elixir: "~> 1.10",
+      elixir: "~> 1.12",
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       package: package(),
@@ -60,7 +60,7 @@ defmodule Dataloader.Mixfile do
 
   defp deps do
     [
-      {:telemetry, "~> 0.4"},
+      {:telemetry, "~> 1.0 or ~> 0.4"},
       {:ecto, ">= 3.4.3 and < 4.0.0", optional: true},
       {:ecto_sql, "~> 3.0", optional: true, only: :test},
       {:postgrex, "~> 0.14", only: :test, runtime: false},

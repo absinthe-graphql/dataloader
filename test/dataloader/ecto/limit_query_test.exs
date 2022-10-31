@@ -44,6 +44,15 @@ defmodule Dataloader.LimitQueryTest do
     |> limit(^limit)
   end
 
+  defp query(schema, %{limit: limit, distinct: true, order_by: order_by}, test_pid) do
+    send(test_pid, :querying)
+
+    schema
+    |> order_by(^order_by)
+    |> limit(^limit)
+    |> distinct(true)
+  end
+
   test "Query limit does not apply globally", %{loader: loader} do
     user1 = %User{username: "Ben Wilson"} |> Repo.insert!()
     user2 = %User{username: "Bruce Williams"} |> Repo.insert!()
@@ -146,6 +155,42 @@ defmodule Dataloader.LimitQueryTest do
     Enum.each([user1, user4], fn user -> Repo.insert!(%Like{user: user, post: post4}) end)
 
     args = {:fans, %{limit: 3, order_by: [asc: :username]}}
+
+    loader =
+      loader
+      |> Dataloader.load_many(Test, args, [user1, user2])
+      |> Dataloader.run()
+
+    assert [%{username: "Bruce Williams"}, %{username: "Chris McCord"}, %{username: "Jose Valim"}] =
+             Dataloader.get(loader, Test, args, user1)
+
+    assert [%{username: "Ben Wilson"}, %{username: "Chris McCord"}, %{username: "Jose Valim"}] =
+             Dataloader.get(loader, Test, args, user2)
+  end
+
+  test "Loads has-many association with limit and pre-existing distinct", %{loader: loader} do
+    leaderboard = %Dataloader.Leaderboard{name: "Top Bloggers"} |> Repo.insert!()
+    user1 = %User{username: "Ben Wilson", leaderboard_id: leaderboard.id} |> Repo.insert!()
+    user2 = %User{username: "Bruce Williams", leaderboard_id: leaderboard.id} |> Repo.insert!()
+    user3 = %User{username: "Chris McCord"} |> Repo.insert!()
+    user4 = %User{username: "Jose Valim"} |> Repo.insert!()
+
+    post1 = %Post{user_id: user1.id, title: "foo"} |> Repo.insert!()
+    post2 = %Post{user_id: user1.id, title: "bar"} |> Repo.insert!()
+    post3 = %Post{user_id: user2.id, title: "baz"} |> Repo.insert!()
+    post4 = %Post{user_id: user2.id, title: "qux"} |> Repo.insert!()
+
+    _score1 = %Score{post_id: post1.id, leaderboard_id: leaderboard.id} |> Repo.insert!()
+    _score2 = %Score{post_id: post2.id, leaderboard_id: leaderboard.id} |> Repo.insert!()
+    _score3 = %Score{post_id: post3.id, leaderboard_id: leaderboard.id} |> Repo.insert!()
+    _score4 = %Score{post_id: post4.id, leaderboard_id: leaderboard.id} |> Repo.insert!()
+
+    Enum.each([user2, user3, user4], fn user -> Repo.insert!(%Like{user: user, post: post1}) end)
+    Enum.each([user3, user4], fn user -> Repo.insert!(%Like{user: user, post: post2}) end)
+    Enum.each([user1, user3, user4], fn user -> Repo.insert!(%Like{user: user, post: post3}) end)
+    Enum.each([user1, user4], fn user -> Repo.insert!(%Like{user: user, post: post4}) end)
+
+    args = {:fans, %{distinct: true, limit: 3, order_by: [asc: :username]}}
 
     loader =
       loader
