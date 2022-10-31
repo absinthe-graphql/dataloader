@@ -44,7 +44,7 @@ defprotocol Dataloader.Source do
   def timeout(source)
 
   @doc """
-  Returns wether or not the source should be running synchronously or asynchronously
+  Returns whether or not the source should be running synchronously or asynchronously with respect to the process making `Dataloader` function calls.
   """
   @spec async?(t) :: boolean
   def async?(source)
