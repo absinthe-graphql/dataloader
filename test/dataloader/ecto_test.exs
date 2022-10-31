@@ -539,10 +539,10 @@ defmodule Dataloader.EctoTest do
   test "run inside transaction" do
     user = %User{username: "Ben Wilson"} |> Repo.insert!()
 
-    source = Dataloader.Ecto.new(Repo, async: false)
+    source = Dataloader.Ecto.new(Repo)
 
     loader =
-      Dataloader.new(async: false)
+      Dataloader.new(async?: false)
       |> Dataloader.add_source(Test, source)
 
     Dataloader.load(loader, Test, User, user.id)

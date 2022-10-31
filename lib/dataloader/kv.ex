@@ -150,7 +150,5 @@ defmodule Dataloader.KV do
     def timeout(%{opts: opts}) do
       opts[:timeout]
     end
-
-    def async?(%{opts: opts}), do: opts[:async?]
   end
 end

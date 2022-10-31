@@ -392,7 +392,7 @@ if Code.ensure_loaded?(Ecto) do
       def run(source) do
         results =
           Dataloader.async_safely(__MODULE__, :run_batches, [source],
-            async?: Dataloader.Source.async?(source)
+            async?: !source.repo.in_transaction?()
           )
 
         results =
@@ -476,10 +476,6 @@ if Code.ensure_loaded?(Ecto) do
 
       def timeout(%{options: options}) do
         options[:timeout]
-      end
-
-      def async?(%{repo: repo}) do
-        not repo.in_transaction?()
       end
 
       defp chase_down_queryable([field], schema) do
@@ -624,7 +620,7 @@ if Code.ensure_loaded?(Ecto) do
               batch_result
             end,
             options,
-            Dataloader.Source.async?(source)
+            !source.repo.in_transaction?()
           )
           |> Enum.map(fn
             {:ok, {_key, result}} -> {:ok, result}
