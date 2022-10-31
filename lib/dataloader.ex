@@ -175,7 +175,8 @@ defmodule Dataloader do
             sync_sources,
             fun,
             [
-              timeout: dataloader_timeout(dataloader)
+              timeout: dataloader_timeout(dataloader),
+              async?: false
             ]
           ],
           async?: false
