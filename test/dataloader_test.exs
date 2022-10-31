@@ -53,6 +53,30 @@ defmodule DataloaderTest do
     end
   end
 
+  describe "async?: false" do
+    test "runs tasks in the same process" do
+      query = fn _batch_key, ids = %MapSet{} ->
+        for id <- ids, into: %{} do
+          {id, self()}
+        end
+      end
+
+      loader =
+        Dataloader.new()
+        |> Dataloader.add_source(:sync, Dataloader.KV.new(query, async?: false))
+        |> Dataloader.add_source(:async, Dataloader.KV.new(query))
+
+      result =
+        loader
+        |> Dataloader.load(:sync, :users, :sync)
+        |> Dataloader.load(:async, :users, :async)
+        |> Dataloader.run()
+
+      assert Dataloader.get(result, :sync, :users, :sync) == self()
+      assert Dataloader.get(result, :async, :users, :async) != self()
+    end
+  end
+
   describe "unknown sources" do
     test "load/3 for unknown source returns error", %{loader: loader} do
       assert_raise RuntimeError, ~r/Source does not exist/, fn ->

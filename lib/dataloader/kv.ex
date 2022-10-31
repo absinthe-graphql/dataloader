@@ -43,6 +43,7 @@ defmodule Dataloader.KV do
       `System.schedulers_online/0`).
     * `:timeout` - the maximum amount of time (in milliseconds) a task is
       allowed to execute for. Defaults to `30000`.
+    * `:async?` - set to `false` to disable the asynchronous behavior mentioned above.
   """
   def new(load_function, opts \\ []) do
     max_concurrency = opts[:max_concurrency] || System.schedulers_online() * 2
@@ -51,7 +52,8 @@ defmodule Dataloader.KV do
       load_function: load_function,
       opts: [
         max_concurrency: max_concurrency,
-        timeout: opts[:timeout] || 30_000
+        timeout: opts[:timeout] || 30_000,
+        async?: Keyword.get(opts, :async?, true)
       ]
     }
   end
@@ -132,7 +134,11 @@ defmodule Dataloader.KV do
       end
 
       results =
-        Dataloader.async_safely(Dataloader, :run_tasks, [source.batches, fun, source.opts])
+        if source.opts[:async?] do
+          Dataloader.async_safely(Dataloader, :run_tasks, [source.batches, fun, source.opts])
+        else
+          Dataloader.run_tasks(source.batches, fun, source.opts)
+        end
 
       %{source | batches: %{}, results: merge_results(source.results, results)}
     end
@@ -144,5 +150,7 @@ defmodule Dataloader.KV do
     def timeout(%{opts: opts}) do
       opts[:timeout]
     end
+
+    def async?(%{opts: opts}), do: opts[:async?]
   end
 end

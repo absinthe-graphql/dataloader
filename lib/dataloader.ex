@@ -149,13 +149,42 @@ defmodule Dataloader do
 
       emit_start_event(id, system_time, dataloader)
 
+      {async_sources, sync_sources} =
+        dataloader.sources
+        |> Enum.split_with(fn {_name, source} -> Dataloader.Source.async?(source) end)
+
+      async_source_results =
+        async_safely(
+          __MODULE__,
+          :run_tasks,
+          [
+            async_sources,
+            fun,
+            [
+              timeout: dataloader_timeout(dataloader)
+            ]
+          ],
+          async?: true
+        )
+
+      sync_source_results =
+        async_safely(
+          __MODULE__,
+          :run_tasks,
+          [
+            sync_sources,
+            fun,
+            [
+              timeout: dataloader_timeout(dataloader)
+            ]
+          ],
+          async?: false
+        )
+
       sources =
-        async_safely(__MODULE__, :run_tasks, [
-          dataloader.sources,
-          fun,
-          [timeout: dataloader_timeout(dataloader)]
-        ])
-        |> Enum.map(fn
+        async_source_results
+        |> Stream.concat(sync_source_results)
+        |> Stream.map(fn
           {_source, {:ok, {name, source}}} -> {name, source}
           {_source, {:error, reason}} -> {:error, reason}
         end)
@@ -267,24 +296,33 @@ defmodule Dataloader do
   whatever that returns.
   """
   @spec async_safely(module(), atom(), list()) :: any()
-  def async_safely(mod, fun, args \\ []) do
-    # The intermediary task is spawned here so that the `:trap_exit` flag does
-    # not lead to rogue behaviour within the current process. This could happen
-    # if the current process is linked to something, and then that something
-    # dies in the middle of us loading stuff.
-    task =
-      Task.async(fn ->
-        # The purpose of `:trap_exit` here is so that we can ensure that any failures
-        # within the tasks do not kill the current process. We want to get results
-        # back no matter what.
-        Process.flag(:trap_exit, true)
+  def async_safely(mod, fun, args \\ [], opts \\ []) do
+    if Keyword.get(opts, :async?, true) do
+      # The intermediary task is spawned here so that the `:trap_exit` flag does
+      # not lead to rogue behaviour within the current process. This could happen
+      # if the current process is linked to something, and then that something
+      # dies in the middle of us loading stuff.
+      task =
+        Task.async(fn ->
+          # The purpose of `:trap_exit` here is so that we can ensure that any failures
+          # within the tasks do not kill the current process. We want to get results
+          # back no matter what.
+          Process.flag(:trap_exit, true)
 
+          apply(mod, fun, args)
+        end)
+
+      # The infinity is safe here because the internal
+      # tasks all have their own timeout.
+      Task.await(task, :infinity)
+    else
+      try do
         apply(mod, fun, args)
-      end)
-
-    # The infinity is safe here because the internal
-    # tasks all have their own timeout.
-    Task.await(task, :infinity)
+      rescue
+        exception ->
+          {:exit, exception}
+      end
+    end
   end
 
   @doc ~S"""
@@ -306,6 +344,8 @@ defmodule Dataloader do
         2 => {:error, :timeout},
         3 => {:error, :timeout}
       }
+
+  By default, tasks are run asynchronously. To run them synchronously, provide `async?: false`.
   """
   @spec run_tasks(list(), fun(), keyword()) :: map()
   def run_tasks(items, fun, opts \\ []) do
@@ -316,12 +356,18 @@ defmodule Dataloader do
       |> Keyword.put(:on_timeout, :kill_task)
 
     results =
-      items
-      |> Task.async_stream(fun, task_opts)
-      |> Enum.map(fn
-        {:ok, result} -> {:ok, result}
-        {:exit, reason} -> {:error, reason}
-      end)
+      if Keyword.get(opts, :async?, true) do
+        items
+        |> Task.async_stream(fun, task_opts)
+        |> Enum.map(fn
+          {:ok, result} -> {:ok, result}
+          {:exit, reason} -> {:error, reason}
+        end)
+      else
+        Enum.map(items, fn item ->
+          {:ok, fun.(item)}
+        end)
+      end
 
     Enum.zip(items, results)
     |> Map.new()
