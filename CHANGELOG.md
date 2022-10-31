@@ -1,8 +1,8 @@
 # Changelog
 
-## v2.0.0-dev (unreleased)
+## v1.0.11 (unreleased)
 
-- Breaking Feature: Automatically handle sync vs async for the ecto dataloader source ([#146](https://github.com/absinthe-graphql/dataloader/pull/146)). Other dataloader source implementations need to add an `async?` function to comply with the protocol.
+- Feature: Handle sync vs async via an option passed in at Dataloader.new
 
 ## v1.0.8
 
