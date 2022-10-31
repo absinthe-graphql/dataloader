@@ -3,8 +3,10 @@ defmodule Dataloader.KV do
   Simple KV based Dataloader source.
 
   This module is a simple key value based data loader source. You
-  must supply a function that accepts ids, and returns a map of values
-  keyed by id.
+  must supply a function that accepts a batch key and list of ids,
+  and returns a map of values keyed by id.
+
+  Values may optionally be returned as :ok / :error tuples to indicate success of the operation.
 
   ## Example
 
@@ -120,6 +122,7 @@ defmodule Dataloader.KV do
         case Map.fetch(batch, id) do
           :error -> {:error, "Unable to find id #{inspect(id)}"}
           {:ok, {:error, reason}} -> {:error, reason}
+          {:ok, {:ok, item}} -> {:ok, item}
           {:ok, item} -> {:ok, item}
         end
       else

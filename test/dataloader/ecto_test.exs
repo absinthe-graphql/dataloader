@@ -38,13 +38,13 @@ defmodule Dataloader.EctoTest do
 
     User
     |> where(^Enum.to_list(args))
-    |> then(fn user ->
-      if is_nil(sort_by) or is_nil(sort_order) do
-        user
-      else
-        order_by(user, {^sort_order, ^sort_by})
-      end
-    end)
+    |> (fn user ->
+          if is_nil(sort_by) or is_nil(sort_order) do
+            user
+          else
+            order_by(user, {^sort_order, ^sort_by})
+          end
+        end).()
   end
 
   defp query(queryable, _args, test_pid) do
@@ -369,9 +369,7 @@ defmodule Dataloader.EctoTest do
         ordered_usernames = Enum.map(loaded_posts, & &1.username)
 
         assert ordered_usernames == expected_usernames,
-               "got #{inspect(ordered_usernames)} but was expecting #{inspect(expected_usernames)} for sort_order #{
-                 sort_order
-               }"
+               "got #{inspect(ordered_usernames)} but was expecting #{inspect(expected_usernames)} for sort_order #{sort_order}"
       end
     end
 
