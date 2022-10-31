@@ -92,7 +92,7 @@ defmodule Dataloader do
           options: [option]
         }
 
-  @type option :: {:timeout, pos_integer} | {:get_policy, atom()}
+  @type option :: {:timeout, pos_integer} | {:get_policy, atom()} | {:async?, boolean()}
   @type source_name :: any
 
   @default_timeout 15_000
