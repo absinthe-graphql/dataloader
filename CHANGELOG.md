@@ -2,7 +2,17 @@
 
 ## v1.0.11 (unreleased)
 
-- Feature: Handle sync vs async via an option passed in at Dataloader.new
+- Feature: Handle sync vs async via an option passed in at Dataloader.new() and KV.new(). Example:
+
+```
+  def dataloader(ctx \\ %{}) do
+    Dataloader.new(async?: !MyApp.Repo.in_transaction?())
+    |> Dataloader.add_source(MainLoader, MainLoader.data(ctx))
+  end
+```
+
+Note that ecto sources will automatically handle whether to perform queries sync or async depending on if it's in a transaction.
+IMPORTANT: The option MUST be passed to `Dataloader.new` for this to work properly. In order for this to happen automatically, upgrade to 2.0
 
 ## v1.0.8
 

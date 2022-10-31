@@ -108,7 +108,7 @@ defmodule Dataloader do
   @spec new([option]) :: t
   def new(opts \\ []) do
     opts =
-      [get_policy: @default_get_policy]
+      [get_policy: @default_get_policy, async?: true]
       |> Keyword.merge(opts)
 
     %__MODULE__{options: opts}
@@ -149,42 +149,23 @@ defmodule Dataloader do
 
       emit_start_event(id, system_time, dataloader)
 
-      {async_sources, sync_sources} =
-        dataloader.sources
-        |> Enum.split_with(fn {_name, source} -> Dataloader.Source.async?(source) end)
-
-      async_source_results =
+      results =
         async_safely(
           __MODULE__,
           :run_tasks,
           [
-            async_sources,
-            fun,
-            [
-              timeout: dataloader_timeout(dataloader)
-            ]
-          ],
-          async?: true
-        )
-
-      sync_source_results =
-        async_safely(
-          __MODULE__,
-          :run_tasks,
-          [
-            sync_sources,
+            dataloader.sources,
             fun,
             [
               timeout: dataloader_timeout(dataloader),
-              async?: false
+              async?: dataloader.options[:async?]
             ]
           ],
-          async?: false
+          async?: dataloader.options[:async?]
         )
 
       sources =
-        async_source_results
-        |> Stream.concat(sync_source_results)
+        results
         |> Stream.map(fn
           {_source, {:ok, {name, source}}} -> {name, source}
           {_source, {:error, reason}} -> {:error, reason}

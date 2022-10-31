@@ -62,7 +62,7 @@ defmodule DataloaderTest do
       end
 
       loader =
-        Dataloader.new()
+        Dataloader.new(async?: false)
         |> Dataloader.add_source(:sync, Dataloader.KV.new(query, async?: false))
         |> Dataloader.add_source(:async, Dataloader.KV.new(query))
 
