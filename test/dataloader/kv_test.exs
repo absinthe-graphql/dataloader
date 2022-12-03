@@ -46,6 +46,44 @@ defmodule Dataloader.KVTest do
     refute_receive(:querying)
   end
 
+  test "basic loading works along with telemetry metrics", %{loader: loader, test: test} do
+    self = self()
+
+    :ok =
+      :telemetry.attach_many(
+        "#{__MODULE__}_#{test}",
+        [
+          [:dataloader, :source, :batch, :run, :start],
+          [:dataloader, :source, :batch, :run, :stop]
+        ],
+        fn name, measurements, metadata, _ ->
+          send(self, {:telemetry_event, name, measurements, metadata})
+        end,
+        nil
+      )
+
+    user_ids = ~w(ben bruce)
+    users = @data[:users]
+
+    loader =
+      loader
+      |> Dataloader.load_many(Test, :users, user_ids)
+      |> Dataloader.run()
+
+    loaded_users =
+      loader
+      |> Dataloader.get_many(Test, :users, user_ids)
+
+    assert length(loaded_users) == 2
+    assert users == loaded_users
+
+    assert_receive {:telemetry_event, [:dataloader, :source, :batch, :run, :start],
+                    %{system_time: _}, %{id: _, batch: _}}
+
+    assert_receive {:telemetry_event, [:dataloader, :source, :batch, :run, :stop], %{duration: _},
+                    %{id: _, batch: _}}
+  end
+
   test "loading something from cache doesn't change the loader", %{loader: loader} do
     round1_loader =
       loader

@@ -133,7 +133,14 @@ defmodule Dataloader.KV do
 
     def run(source) do
       fun = fn {batch_key, ids} ->
-        {batch_key, source.load_function.(batch_key, ids)}
+        id = :erlang.unique_integer()
+        system_time = System.system_time()
+        start_time_mono = System.monotonic_time()
+
+        emit_start_event(id, system_time, batch_key)
+        batch_result = {batch_key, source.load_function.(batch_key, ids)}
+        emit_stop_event(id, start_time_mono, batch_key)
+        batch_result
       end
 
       results =
@@ -155,5 +162,21 @@ defmodule Dataloader.KV do
     end
 
     def async?(%{opts: opts}), do: opts[:async?]
+
+    defp emit_start_event(id, system_time, batch) do
+      :telemetry.execute(
+        [:dataloader, :source, :batch, :run, :start],
+        %{system_time: system_time},
+        %{id: id, batch: batch}
+      )
+    end
+
+    defp emit_stop_event(id, start_time_mono, batch) do
+      :telemetry.execute(
+        [:dataloader, :source, :batch, :run, :stop],
+        %{duration: System.monotonic_time() - start_time_mono},
+        %{id: id, batch: batch}
+      )
+    end
   end
 end
