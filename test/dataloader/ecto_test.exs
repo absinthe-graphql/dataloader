@@ -57,7 +57,7 @@ defmodule Dataloader.EctoTest do
 
     :ok =
       :telemetry.attach_many(
-        "#{test}",
+        "#{__MODULE__}_#{test}",
         [
           [:dataloader, :source, :batch, :run, :start],
           [:dataloader, :source, :batch, :run, :stop]
