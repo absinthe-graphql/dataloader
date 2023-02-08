@@ -304,7 +304,7 @@ defmodule Dataloader do
       # if the current process is linked to something, and then that something
       # dies in the middle of us loading stuff.
       task =
-        Task.async(fn ->
+        async(fn ->
           # The purpose of `:trap_exit` here is so that we can ensure that any failures
           # within the tasks do not kill the current process. We want to get results
           # back no matter what.
@@ -359,7 +359,7 @@ defmodule Dataloader do
     results =
       if Keyword.get(opts, :async?, true) do
         items
-        |> Task.async_stream(fun, task_opts)
+        |> async_stream(fun, task_opts)
         |> Enum.map(fn
           {:ok, result} -> {:ok, result}
           {:exit, reason} -> {:error, reason}
@@ -389,5 +389,21 @@ defmodule Dataloader do
   @spec pmap(list(), fun(), keyword()) :: map()
   def pmap(items, fun, opts \\ []) do
     async_safely(__MODULE__, :run_tasks, [items, fun, opts])
+  end
+
+  # Optionally use `async/1` and `async_stream/3` functions from
+  # `opentelemetry_process_propagator` if available
+  if Code.ensure_loaded?(OpentelemetryProcessPropagator.Task) do
+    @spec async((() -> any)) :: Task.t()
+    defdelegate async(fun), to: OpentelemetryProcessPropagator.Task
+
+    @spec async_stream(Enumerable.t(), (term -> term), keyword) :: Enumerable.t()
+    defdelegate async_stream(items, fun, opts), to: OpentelemetryProcessPropagator.Task
+  else
+    @spec async((() -> any)) :: Task.t()
+    defdelegate async(fun), to: Task
+
+    @spec async_stream(Enumerable.t(), (term -> term), keyword) :: Enumerable.t()
+    defdelegate async_stream(items, fun, opts), to: Task
   end
 end

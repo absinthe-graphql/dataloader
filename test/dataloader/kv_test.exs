@@ -205,6 +205,18 @@ defmodule Dataloader.KVTest do
     assert not_found_users == [nil]
   end
 
+  test "propagates the OTel context", %{loader: loader} do
+    OpenTelemetry.Ctx.set_value("stored_value", "some_value")
+
+    context_value =
+      loader
+      |> Dataloader.load(Test, :otel_context, "stored_value")
+      |> Dataloader.run()
+      |> Dataloader.get(Test, :otel_context, "stored_value")
+
+    assert context_value == "some_value"
+  end
+
   defp query(batch_key, ids, test_pid) do
     send(test_pid, :querying)
 
@@ -215,6 +227,10 @@ defmodule Dataloader.KVTest do
 
   defp query(_batch_key, "something_that_errors"),
     do: raise("Failed when fetching key 'something_that_errors'")
+
+  defp query(:otel_context, key) do
+    {key, OpenTelemetry.Ctx.get_value(key, nil)}
+  end
 
   defp query(batch_key, id) do
     item =

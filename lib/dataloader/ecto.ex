@@ -638,7 +638,7 @@ if Code.ensure_loaded?(Ecto) do
       end
 
       defp maybe_async_stream(batches, fun, options, true) do
-        Task.async_stream(batches, fun, options)
+        async_stream(batches, fun, options)
       end
 
       defp maybe_async_stream(batches, fun, _options, _) do
@@ -963,6 +963,16 @@ if Code.ensure_loaded?(Ecto) do
           other ->
             other
         end
+      end
+
+      # Optionally use `async_stream/3` function from
+      # `opentelemetry_process_propagator` if available
+      if Code.ensure_loaded?(OpentelemetryProcessPropagator.Task) do
+        @spec async_stream(Enumerable.t(), (term -> term), keyword) :: Enumerable.t()
+        defdelegate async_stream(items, fun, opts), to: OpentelemetryProcessPropagator.Task
+      else
+        @spec async_stream(Enumerable.t(), (term -> term), keyword) :: Enumerable.t()
+        defdelegate async_stream(items, fun, opts), to: Task
       end
     end
   end
