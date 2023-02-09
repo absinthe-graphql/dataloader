@@ -20,7 +20,7 @@ defmodule Dataloader.Mixfile do
       ],
       dialyzer: [
         plt_core_path: "priv/plts",
-        plt_add_deps: :transitive,
+        plt_add_deps: true,
         plt_add_apps: [:mix, :ecto, :ecto_sql]
       ]
     ]
