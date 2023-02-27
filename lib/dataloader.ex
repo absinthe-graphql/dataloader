@@ -168,7 +168,7 @@ defmodule Dataloader do
         results
         |> Stream.map(fn
           {_source, {:ok, {name, source}}} -> {name, source}
-          {_source, {:error, reason}} -> {:error, reason}
+          {{name, _}, {:error, reason}} -> {name, {:error, reason}}
         end)
         |> Map.new()
 
@@ -212,7 +212,7 @@ defmodule Dataloader do
   def get(loader = %Dataloader{options: options}, source, batch_key, item_key) do
     loader
     |> get_source(source)
-    |> Source.fetch(batch_key, item_key)
+    |> do_fetch(batch_key, item_key)
     |> do_get(options[:get_policy])
   end
 
@@ -223,10 +223,13 @@ defmodule Dataloader do
 
     for key <- item_keys do
       source
-      |> Source.fetch(batch_key, key)
+      |> do_fetch(batch_key, key)
       |> do_get(options[:get_policy])
     end
   end
+
+  defp do_fetch({:error, reason}, _, _), do: {:error, reason}
+  defp do_fetch(source, batch_key, key), do: Source.fetch(source, batch_key, key)
 
   defp do_get({:ok, val}, :raise_on_error), do: val
   defp do_get({:ok, val}, :return_nil_on_error), do: val
@@ -240,14 +243,20 @@ defmodule Dataloader do
     source =
       loader
       |> get_source(source_name)
-      |> Source.put(batch_key, item_key, result)
+      |> do_put(batch_key, item_key, result)
 
     put_in(loader.sources[source_name], source)
   end
 
+  defp do_put({:error, reason}, _, _, _), do: {:error, reason}
+  defp do_put(source, batch_key, key, result), do: Source.put(source, batch_key, key, result)
+
   @spec pending_batches?(t) :: boolean
   def pending_batches?(loader) do
-    Enum.any?(loader.sources, fn {_name, source} -> Source.pending_batches?(source) end)
+    Enum.any?(loader.sources, fn
+      {_name, {:error, _}} -> false
+      {_name, source} -> Source.pending_batches?(source)
+    end)
   end
 
   defp get_source(loader, source_name) do
