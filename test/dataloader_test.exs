@@ -1,6 +1,7 @@
 defmodule DataloaderTest do
   use ExUnit.Case, async: false
   import ExUnit.CaptureLog
+  import Mox
 
   doctest Dataloader
 
@@ -26,6 +27,8 @@ defmodule DataloaderTest do
 
     {id, item}
   end
+
+  setup :verify_on_exit!
 
   setup do
     loader =
@@ -91,6 +94,34 @@ defmodule DataloaderTest do
         |> Dataloader.run()
         |> Dataloader.get(:bogus, :users, "ben")
       end
+    end
+  end
+
+  describe "run/1" do
+    test "exceeds timeout" do
+      Dataloader.TestSource.MockSource
+      # lowest possible timeout
+      |> expect(:timeout, fn _ -> 1 end)
+      # false would skip invoking Source.run/1
+      |> expect(:pending_batches?, fn _ -> true end)
+      # Dataloader adds one second to every timeout, to trigger timeout we
+      # need to hold longer than <timeout> + 1s
+      |> expect(:run, fn _ -> Process.sleep(1002) end)
+
+      loader =
+        Dataloader.new(get_policy: :tuples, async?: true)
+        |> Dataloader.add_source(:test, %Dataloader.TestSource.SourceImpl{name: "test"})
+        |> Dataloader.run()
+
+      # Dataloader replaces the source struct with error tuple. There is
+      # reasonable recovery from timeout.
+      assert %{sources: %{test: {:error, :timeout}}} = loader
+      # put changes nothing
+      assert ^loader = Dataloader.put(loader, :test, :foo, :bar, :baz)
+      # load changes nothing
+      assert ^loader = Dataloader.load(loader, :test, :foo, :bar)
+      # get returns the error, nil or raises a GetError
+      assert {:error, :timeout} == Dataloader.get(loader, :test, :foo, :bar)
     end
   end
 
