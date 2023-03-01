@@ -136,6 +136,7 @@ defmodule Dataloader do
   end
 
   defp do_load({:error, error}, _, _), do: {:error, error}
+
   defp do_load(source, batch_key, vals) do
     Enum.reduce(vals, source, &Source.load(&2, batch_key, &1))
   end
