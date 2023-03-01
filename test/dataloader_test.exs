@@ -110,7 +110,7 @@ defmodule DataloaderTest do
 
       loader =
         Dataloader.new(get_policy: :tuples, async?: true)
-        |> Dataloader.add_source(:test, %Dataloader.TestSource.SourceImpl{name: "test"})
+        |> Dataloader.add_source(:test, %Dataloader.TestSource.SourceImpl{})
         |> Dataloader.run()
 
       # Dataloader replaces the source struct with error tuple. There is
@@ -122,6 +122,26 @@ defmodule DataloaderTest do
       assert ^loader = Dataloader.load(loader, :test, :foo, :bar)
       # get returns the error, nil or raises a GetError
       assert {:error, :timeout} == Dataloader.get(loader, :test, :foo, :bar)
+    end
+
+    test "use highest timeout plus margin as timeout for all tasks" do
+      Dataloader.TestSource.MockSource
+      |> expect(:timeout, 2, fn %{timeout: t} -> t end)
+      # pending_batches? is only checked for any?
+      |> expect(:pending_batches?, fn _ -> true end)
+      # Sleep for 1002ms (not triggering timeout) or 1011ms (triggering timeout)
+      |> expect(:run, 2, fn s ->
+        Process.sleep(s.timeout + 1001)
+        s
+      end)
+
+      loader =
+        Dataloader.new(get_policy: :tuples, async?: true)
+        |> Dataloader.add_source(:test_1, %Dataloader.TestSource.SourceImpl{timeout: 1})
+        |> Dataloader.add_source(:test_10, %Dataloader.TestSource.SourceImpl{timeout: 10})
+        |> Dataloader.run()
+
+      assert %{sources: %{test_1: %{}, test_10: {:error, :timeout}}} = loader
     end
   end
 
