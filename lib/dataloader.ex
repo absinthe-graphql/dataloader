@@ -92,9 +92,14 @@ defmodule Dataloader do
           options: [option]
         }
 
-  @type option :: {:timeout, pos_integer} | {:get_policy, atom()} | {:async?, boolean()}
+  @type option ::
+          {:timeout, pos_integer}
+          | {:get_policy, atom()}
+          | {:async?, boolean()}
+          | {:timeout_margin, non_neg_integer}
   @type source_name :: any
 
+  @default_timeout_margin 1_000
   @default_timeout 15_000
   def default_timeout, do: @default_timeout
 
@@ -108,7 +113,7 @@ defmodule Dataloader do
   @spec new([option]) :: t
   def new(opts \\ []) do
     opts =
-      [get_policy: @default_get_policy, async?: true]
+      [get_policy: @default_get_policy, async?: true, timeout_margin: @default_timeout_margin]
       |> Keyword.merge(opts)
 
     %__MODULE__{options: opts}
@@ -207,7 +212,7 @@ defmodule Dataloader do
       |> Enum.reject(&is_nil/1)
       |> Enum.max(fn -> @default_timeout end)
 
-    max_source_timeout + :timer.seconds(1)
+    max_source_timeout + Keyword.get(dataloader.options, :timeout_margin, @default_timeout_margin)
   end
 
   @spec get(t, source_name, any, any) :: any

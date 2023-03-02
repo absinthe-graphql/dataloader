@@ -106,10 +106,10 @@ defmodule DataloaderTest do
       |> expect(:pending_batches?, fn _ -> true end)
       # Dataloader adds one second to every timeout, to trigger timeout we
       # need to hold longer than <timeout> + 1s
-      |> expect(:run, fn _ -> Process.sleep(1002) end)
+      |> expect(:run, fn _ -> Process.sleep(2) end)
 
       loader =
-        Dataloader.new(get_policy: :tuples, async?: true)
+        Dataloader.new(get_policy: :tuples, async?: true, timeout_margin: 0)
         |> Dataloader.add_source(:test, %Dataloader.TestSource.SourceImpl{})
         |> Dataloader.run()
 
@@ -129,14 +129,14 @@ defmodule DataloaderTest do
       |> expect(:timeout, 2, fn %{timeout: t} -> t end)
       # pending_batches? is only checked for any?
       |> expect(:pending_batches?, fn _ -> true end)
-      # Sleep for 1002ms (not triggering timeout) or 1011ms (triggering timeout)
+      # Sleep for 2ms (not triggering timeout) or 11ms (triggering timeout)
       |> expect(:run, 2, fn s ->
-        Process.sleep(s.timeout + 1001)
+        Process.sleep(s.timeout + 1)
         s
       end)
 
       loader =
-        Dataloader.new(get_policy: :tuples, async?: true)
+        Dataloader.new(get_policy: :tuples, async?: true, timeout_margin: 0)
         |> Dataloader.add_source(:test_1, %Dataloader.TestSource.SourceImpl{timeout: 1})
         |> Dataloader.add_source(:test_10, %Dataloader.TestSource.SourceImpl{timeout: 10})
         |> Dataloader.run()
