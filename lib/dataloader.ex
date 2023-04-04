@@ -208,7 +208,7 @@ defmodule Dataloader do
   defp dataloader_timeout(dataloader) do
     max_source_timeout =
       dataloader.sources
-      |> Enum.map(fn {_, source} -> Source.timeout(source) end)
+      |> Enum.map(fn {_, source} -> do_timeout(source) end)
       |> Enum.reject(&is_nil/1)
       |> Enum.max(fn -> @default_timeout end)
 
@@ -245,6 +245,9 @@ defmodule Dataloader do
   defp do_get({:error, reason}, :raise_on_error), do: raise(Dataloader.GetError, inspect(reason))
   defp do_get({:error, _reason}, :return_nil_on_error), do: nil
   defp do_get({:error, reason}, :tuples), do: {:error, reason}
+
+  defp do_timeout({:error, _reason}), do: nil
+  defp do_timeout(source), do: Source.timeout(source)
 
   def put(loader, source_name, batch_key, item_key, result) do
     source =
