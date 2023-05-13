@@ -304,7 +304,7 @@ if Code.ensure_loaded?(Ecto) do
       data =
         opts
         |> Keyword.put_new(:query, &query/2)
-        |> Keyword.put_new(:run_batch, &run_batch(repo, &1, &2, &3, &4, &5))
+        |> Keyword.put_new(:run_batch, &run_batch/6)!
 
       opts = Keyword.take(opts, [:timeout])
 
@@ -651,9 +651,9 @@ if Code.ensure_loaded?(Ecto) do
             inputs
           end
 
-        results =
-          queryable
-          |> source.run_batch.(query, col, coerced_inputs, repo_opts)
+        results
+          source.repo
+          |> source.run_batch.(queryable, query, col, coerced_inputs, repo_opts)
           |> Enum.map(cardinality_mapper)
 
         results =
