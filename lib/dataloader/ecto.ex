@@ -304,7 +304,7 @@ if Code.ensure_loaded?(Ecto) do
       data =
         opts
         |> Keyword.put_new(:query, &query/2)
-        |> Keyword.put_new(:run_batch, &run_batch/6)!
+        |> Keyword.put_new(:run_batch, &run_batch/6)
 
       opts = Keyword.take(opts, [:timeout])
 
