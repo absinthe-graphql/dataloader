@@ -3,7 +3,7 @@ defmodule Dataloader.Picture do
 
   schema "pictures" do
     field(:status, :string)
-    field(:url, :string, null: false)
+    field(:url, :string)
     has_many(:likes, Dataloader.Like)
     has_many(:published_likes, Dataloader.Like, where: [status: "published"])
   end
