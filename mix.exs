@@ -20,7 +20,8 @@ defmodule Dataloader.Mixfile do
       ],
       dialyzer: [
         plt_core_path: "priv/plts",
-        plt_add_apps: [:mix, :ecto, :ecto_sql, :opentelemetry_process_propagator]
+        plt_add_apps: [:mix, :ecto, :ecto_sql, :opentelemetry_process_propagator],
+        plt_add_deps: :apps_direct
       ]
     ]
   end
