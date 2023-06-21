@@ -20,7 +20,8 @@ defmodule Dataloader.Mixfile do
       ],
       dialyzer: [
         plt_core_path: "priv/plts",
-        plt_add_apps: [:mix, :ecto, :ecto_sql, :opentelemetry_process_propagator]
+        plt_add_apps: [:mix, :ecto, :ecto_sql, :opentelemetry_process_propagator],
+        plt_add_deps: :apps_direct
       ]
     ]
   end
@@ -65,7 +66,7 @@ defmodule Dataloader.Mixfile do
       {:opentelemetry_process_propagator, "~> 0.2.1", optional: true},
       {:ecto_sql, "~> 3.0", optional: true, only: :test},
       {:postgrex, "~> 0.14", only: :test, runtime: false},
-      {:dialyxir, "~> 1.0.0", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.3.0", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.24", only: :dev, runtime: false}
     ]
   end
