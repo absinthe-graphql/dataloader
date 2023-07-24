@@ -2,7 +2,7 @@ defmodule Dataloader.Mixfile do
   use Mix.Project
 
   @source_url "https://github.com/absinthe-graphql/dataloader"
-  @version "2.0.0-dev"
+  @version "2.0.0"
 
   def project do
     [
@@ -61,7 +61,7 @@ defmodule Dataloader.Mixfile do
 
   defp deps do
     [
-      {:telemetry, "~> 1.0 or ~> 0.4"},
+      {:telemetry, "~> 1.0"},
       {:ecto, ">= 3.4.3 and < 4.0.0", optional: true},
       {:opentelemetry_process_propagator, "~> 0.2.1", optional: true},
       {:ecto_sql, "~> 3.0", optional: true, only: :test},
