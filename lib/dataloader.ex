@@ -82,6 +82,7 @@ defmodule Dataloader do
 
   """
   defstruct sources: %{},
+            failed_sources: %{},
             options: []
 
   require Logger
@@ -89,6 +90,7 @@ defmodule Dataloader do
 
   @type t :: %__MODULE__{
           sources: %{source_name => Dataloader.Source.t()},
+          failed_sources: %{source_name => {:error, term()}},
           options: [option]
         }
 
@@ -182,16 +184,16 @@ defmodule Dataloader do
           async?: false
         )
 
-      sources =
+      updated_dataloader =
         async_source_results
         |> Stream.concat(sync_source_results)
-        |> Stream.map(fn
-          {_source, {:ok, {name, source}}} -> {name, source}
-          {_source, {:error, reason}} -> {:error, reason}
-        end)
-        |> Map.new()
+        |> Enum.reduce(%{dataloader | failed_sources: %{}}, fn
+          {_source, {:ok, {name, source}}}, dataloader ->
+            put_in(dataloader.sources[name], source)
 
-      updated_dataloader = %{dataloader | sources: sources}
+          {{name, _source}, {:error, reason}}, dataloader ->
+            put_in(dataloader.failed_sources[name], {:error, reason})
+        end)
 
       emit_stop_event(id, start_time_mono, updated_dataloader)
 
@@ -229,31 +231,41 @@ defmodule Dataloader do
 
   @spec get(t, source_name, any, any) :: any
   def get(loader = %Dataloader{options: options}, source, batch_key, item_key) do
+    source_error = loader.failed_sources[source]
+
     loader
     |> get_source(source)
     |> Source.fetch(batch_key, item_key)
-    |> do_get(options[:get_policy])
+    |> do_get(options[:get_policy], source_error)
   end
 
   @spec get_many(t, source_name, any, any) :: [any] | {:ok, [any]}
   def get_many(loader = %Dataloader{options: options}, source, batch_key, item_keys)
       when is_list(item_keys) do
     source = get_source(loader, source)
+    source_error = loader.failed_sources[source]
 
     for key <- item_keys do
       source
       |> Source.fetch(batch_key, key)
-      |> do_get(options[:get_policy])
+      |> do_get(options[:get_policy], source_error)
     end
   end
 
-  defp do_get({:ok, val}, :raise_on_error), do: val
-  defp do_get({:ok, val}, :return_nil_on_error), do: val
-  defp do_get({:ok, val}, :tuples), do: {:ok, val}
+  defp do_get({:ok, val}, :raise_on_error, _), do: val
+  defp do_get({:ok, val}, :return_nil_on_error, _), do: val
+  defp do_get({:ok, val}, :tuples, _), do: {:ok, val}
 
-  defp do_get({:error, reason}, :raise_on_error), do: raise(Dataloader.GetError, inspect(reason))
-  defp do_get({:error, _reason}, :return_nil_on_error), do: nil
-  defp do_get({:error, reason}, :tuples), do: {:error, reason}
+  defp do_get({:error, _reason}, :raise_on_error, {:error, reason}),
+    do: raise(Dataloader.GetError, inspect(reason))
+
+  defp do_get({:error, _reason}, :return_nil_on_error, _), do: nil
+  defp do_get({:error, _reason}, :tuples, {:error, reason}), do: {:error, reason}
+
+  defp do_get({:error, reason}, :raise_on_error, _),
+    do: raise(Dataloader.GetError, inspect(reason))
+
+  defp do_get({:error, reason}, :tuples, _), do: {:error, reason}
 
   def put(loader, source_name, batch_key, item_key, result) do
     source =

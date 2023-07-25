@@ -104,6 +104,22 @@ defmodule DataloaderTest do
     end
   end
 
+  describe "erroring sources" do
+    test "get/4 returns error" do
+      loader =
+        Dataloader.new(get_policy: :tuples, async: true)
+        |> Dataloader.add_source(:test, %Dataloader.Source.Error{})
+
+      result =
+        loader
+        |> Dataloader.load(:test, :sleep, 5)
+        |> Dataloader.run()
+        |> Dataloader.get(:test, :sleep, 5)
+
+      assert result == {:error, :killed}
+    end
+  end
+
   describe "get methods when configured to raise an error" do
     test "get/4 returns a value when successful", %{loader: loader} do
       result =
