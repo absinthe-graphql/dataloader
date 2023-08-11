@@ -690,8 +690,15 @@ if Code.ensure_loaded?(Ecto) do
         empty = schema |> struct |> Map.fetch!(field)
         records = records |> Enum.map(&Map.put(&1, field, empty))
 
+        # The fallback to %{} here is just in case the association doesn't exist.
+        # obviously this won't actually work, but the error message produced by the
+        # preload call is better so we just let it fall through to that.
+        assoc = schema.__schema__(:association, field) || %{}
+
+        internal_assoc_order? = Map.has_key?(assoc, :through) && Enum.any?(query.order_bys)
+
         results =
-          if query.limit || query.offset || Enum.any?(query.order_bys) do
+          if query.limit || query.offset || internal_assoc_order? do
             records
             |> preload_lateral(field, query, source.repo, repo_opts)
           else
