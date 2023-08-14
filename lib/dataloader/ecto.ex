@@ -695,7 +695,7 @@ if Code.ensure_loaded?(Ecto) do
         records = records |> Enum.map(&Map.put(&1, field, empty))
 
         results =
-          if query.limit || query.offset || Enum.any?(query.order_bys) do
+          if query.limit || query.offset do
             records
             |> preload_lateral(field, query, source.repo, repo_opts)
           else
