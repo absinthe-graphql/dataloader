@@ -8,8 +8,7 @@ on:
 
 jobs:
   test:
-    name: Elixir ${{matrix.elixir}} / OTP ${{matrix.otp}}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     services:
       postgres:
@@ -21,23 +20,26 @@ jobs:
           POSTGRES_PASSWORD: postgres
 
     strategy:
+      fail-fast: false
       matrix:
-        elixir:
-          - '1.13'
-          - '1.14'
-        otp:
-          - '24'
-          - '25'
+        include:
+          - pair:
+              elixir: 1.11.4
+              otp: 22.3
+          - pair:
+              elixir: 1.15.7
+              otp: 26.1
+            lint: lint
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Set up Elixir
       uses: erlef/setup-beam@v1
       with:
-        elixir-version: ${{ matrix.elixir }}
-        otp-version: ${{ matrix.otp }}
+        elixir-version: ${{ matrix.pair.elixir }}
+        otp-version: ${{ matrix.pair.otp }}
 
     - name: Restore deps cache
       uses: actions/cache@v3
@@ -45,10 +47,10 @@ jobs:
         path: |
           deps
           _build
-        key: deps-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('**/mix.lock') }}-git-${{ github.sha }}
+        key: deps-${{ runner.os }}-${{ matrix.pair.otp }}-${{ matrix.pair.elixir }}-${{ hashFiles('**/mix.lock') }}-git-${{ github.sha }}
         restore-keys: |
-          deps-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('**/mix.lock') }}
-          deps-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}
+          deps-${{ runner.os }}-${{ matrix.pair.otp }}-${{ matrix.pair.elixir }}-${{ hashFiles('**/mix.lock') }}
+          deps-${{ runner.os }}-${{ matrix.pair.otp }}-${{ matrix.pair.elixir }}
 
     - name: Create dializer plts path
       run: mkdir -p priv/plts
@@ -57,21 +59,32 @@ jobs:
       uses: actions/cache@v3
       with:
         path: priv/plts
-        key: plts-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('**/mix.lock') }}-${{ github.sha }}
+        key: plts-${{ runner.os }}-${{ matrix.pair.otp }}-${{ matrix.pair.elixir }}-${{ hashFiles('**/mix.lock') }}-${{ github.sha }}
         restore-keys: |
-          plts-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('**/mix.lock') }}
-          plts-${{ runner.os }}-${{ matrix.otp }}-${{ matrix.elixir }}
+          plts-${{ runner.os }}-${{ matrix.pair.otp }}-${{ matrix.pair.elixir }}-${{ hashFiles('**/mix.lock') }}
+          plts-${{ runner.os }}-${{ matrix.pair.otp }}-${{ matrix.pair.elixir }}
 
     - name: Install package dependencies
       run: mix deps.get
 
     - name: Check code format
       run: mix format --check-formatted
+      if: ${{ matrix.lint }}
+
+    - name: Check unused deps
+      run: mix deps.unlock --check-unused
+      if: ${{ matrix.lint }}
 
     - name: Compile dependencies
-      run: mix compile
+      run: mix deps.compile
       env:
         MIX_ENV: test
+
+    - name: Compile app
+      run: mix compile --warnings-as-errors
+      env:
+        MIX_ENV: test
+      if: ${{ matrix.lint }}
 
     - name: Run unit tests
       run: |
@@ -82,3 +95,4 @@ jobs:
 
     - name: Run dialyzer
       run: mix dialyzer
+      if: ${{ matrix.lint }}
