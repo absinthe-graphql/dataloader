@@ -17,7 +17,7 @@ Make sure the tests pass.
 
 Running tests for Dataloader requires a running instance of Postgres. The easiest way to do this is to run Postgres inside of Docker whilst running the Dataloader tests. In one terminal run:
 
-    docker run -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=dataloader_test postgres
+    docker run -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=dataloader_test docker.io/postgres
 
 and in another terminal run:
 
