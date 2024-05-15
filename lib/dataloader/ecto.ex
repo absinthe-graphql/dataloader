@@ -335,6 +335,10 @@ if Code.ensure_loaded?(Ecto) do
       end
     end
 
+    defp load_rows(nil, _inputs, _queryable, query, repo, repo_opts) do
+      repo.all(query, repo_opts)
+    end
+
     defp load_rows(col, inputs, queryable, query, repo, repo_opts) do
       pk = queryable.__schema__(:primary_key)
 
@@ -562,6 +566,10 @@ if Code.ensure_loaded?(Ecto) do
             This can happen if you intend to pass an Ecto struct in your call to
             `dataloader/4` but pass something other than a struct.
           """
+      end
+
+      defp normalize_value(_queryable, []) do
+        {:not_primary, nil, nil}
       end
 
       defp normalize_value(queryable, [{col, value}]) do

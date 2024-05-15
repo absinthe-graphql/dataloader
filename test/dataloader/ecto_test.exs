@@ -308,6 +308,26 @@ defmodule Dataloader.EctoTest do
     assert message =~ "Cardinality"
   end
 
+  test "basic loading of all things", %{loader: loader} do
+    user1 = %User{username: "Ben Wilson"} |> Repo.insert!()
+    user2 = %User{username: "Bruce Williams"} |> Repo.insert!()
+
+    [post1, post2, post3] =
+      [
+        %Post{user_id: user1.id, title: "foo"},
+        %Post{user_id: user1.id, title: "baz"},
+        %Post{user_id: user2.id, title: "bar"}
+      ]
+      |> Enum.map(&Repo.insert!/1)
+
+    loader =
+      loader
+      |> Dataloader.load(Test, {:many, Post}, [])
+      |> Dataloader.run()
+
+    assert [post1, post2, post3] == Dataloader.get(loader, Test, {:many, Post}, [])
+  end
+
   describe "has_many through:" do
     test "basic loading works", %{loader: loader} do
       user1 = %User{username: "Ben Wilson"} |> Repo.insert!()
