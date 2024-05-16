@@ -5,7 +5,7 @@ defmodule Dataloader.Post do
     belongs_to(:user, Dataloader.User)
     has_many(:likes, Dataloader.Like)
     has_many(:scores, Dataloader.Score)
-    has_many(:liking_users, through: [:likes, :user])
+    many_to_many(:liking_users, Dataloader.User, join_through: Dataloader.Like)
 
     field(:title, :string)
     field(:status, :string)
