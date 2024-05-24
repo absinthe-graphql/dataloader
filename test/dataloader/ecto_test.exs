@@ -308,7 +308,7 @@ defmodule Dataloader.EctoTest do
     assert message =~ "Cardinality"
   end
 
-  describe "has_many through:" do
+  describe "many_to_many" do
     test "basic loading works", %{loader: loader} do
       user1 = %User{username: "Ben Wilson"} |> Repo.insert!()
       user2 = %User{username: "Bruce Williams"} |> Repo.insert!()
