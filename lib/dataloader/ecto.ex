@@ -917,7 +917,8 @@ if Code.ensure_loaded?(Ecto) do
         build_preload_lateral_query(rest, join_query, :join_last)
       end
 
-      defp maybe_distinct(%Ecto.Query{distinct: dist} = query, _) when dist, do: query
+      defp maybe_distinct(%Ecto.Query{distinct: distinct} = query, _) when not is_nil(distinct),
+        do: query
 
       defp maybe_distinct(query, [%Ecto.Association.Has{}, %Ecto.Association.BelongsTo{} | _]),
         do: distinct(query, true)
