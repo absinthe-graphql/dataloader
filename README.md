@@ -17,7 +17,7 @@ The package can be installed by adding [`:dataloader`](https://hex.pm/packages/d
 ```elixir
 def deps do
   [
-    {:dataloader, "~> 1.0.0"}
+    {:dataloader, "~> 2.0.0"}
   ]
 end
 ```
