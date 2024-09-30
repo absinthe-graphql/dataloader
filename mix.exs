@@ -67,7 +67,8 @@ defmodule Dataloader.Mixfile do
       {:ecto_sql, "~> 3.0", optional: true, only: :test},
       {:postgrex, "~> 0.14", only: :test, runtime: false},
       {:dialyxir, "~> 1.3.0", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.24", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.24", only: :dev, runtime: false},
+      {:jason, "~> 1.0", only: :test}
     ]
   end
 

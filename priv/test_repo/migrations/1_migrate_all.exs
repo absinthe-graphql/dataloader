@@ -1,4 +1,4 @@
-defmodule Absinthe.Ecto.TestRepo.Migrations.MigrateAll do
+defmodule Dataloader.Ecto.TestRepo.Migrations.MigrateAll do
   use Ecto.Migration
 
   def change do

@@ -512,7 +512,15 @@ if Code.ensure_loaded?(Ecto) do
       defp get_keys({assoc_field, opts}, %schema{} = record) when is_atom(assoc_field) do
         validate_queryable(schema)
         primary_keys = schema.__schema__(:primary_key)
-        id = Enum.map(primary_keys, &Map.get(record, &1))
+
+        id =
+          if primary_keys == [] do
+            record
+            |> :erlang.term_to_iovec()
+            |> :erlang.md5()
+          else
+            Enum.map(primary_keys, &Map.get(record, &1))
+          end
 
         queryable = chase_down_queryable([assoc_field], schema)
 
