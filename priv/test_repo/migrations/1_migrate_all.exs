@@ -40,5 +40,9 @@ defmodule Dataloader.Ecto.TestRepo.Migrations.MigrateAll do
       add :picture_id, references(:pictures)
       add :status, :string
     end
+
+    create table(:countries) do
+      add :name, :string
+    end
   end
 end
