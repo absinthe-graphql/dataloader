@@ -394,13 +394,13 @@ defmodule Dataloader do
   # Optionally use `async/1` and `async_stream/3` functions from
   # `opentelemetry_process_propagator` if available
   if Code.ensure_loaded?(OpentelemetryProcessPropagator.Task) do
-    @spec async((() -> any)) :: Task.t()
+    @spec async((-> any)) :: Task.t()
     defdelegate async(fun), to: OpentelemetryProcessPropagator.Task
 
     @spec async_stream(Enumerable.t(), (term -> term), keyword) :: Enumerable.t()
     defdelegate async_stream(items, fun, opts), to: OpentelemetryProcessPropagator.Task
   else
-    @spec async((() -> any)) :: Task.t()
+    @spec async((-> any)) :: Task.t()
     defdelegate async(fun), to: Task
 
     @spec async_stream(Enumerable.t(), (term -> term), keyword) :: Enumerable.t()
