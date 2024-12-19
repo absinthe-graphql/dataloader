@@ -9,4 +9,4 @@ config :dataloader, Dataloader.TestRepo,
 
 config :dataloader, ecto_repos: [Dataloader.TestRepo]
 
-config :logger, level: :warn
+config :logger, level: :warning
