@@ -78,6 +78,35 @@ defmodule Dataloader.LimitQueryTest do
     assert [post3] == Dataloader.get(loader, Test, args, user_id: user2.id)
   end
 
+  test "Query limit without filters", %{loader: loader} do
+    user1 = %User{username: "Ben Wilson"} |> Repo.insert!()
+    user2 = %User{username: "Bruce Williams"} |> Repo.insert!()
+
+    [post1, post2, _post3, _post4] =
+      [
+        %Post{user_id: user1.id, title: "foo"},
+        %Post{user_id: user1.id, title: "baz"},
+        %Post{user_id: user2.id, title: "bar"},
+        %Post{user_id: user2.id, title: "qux"}
+      ]
+      |> Enum.map(&Repo.insert!/1)
+
+    args0 = {{:one, Post}, %{limit: 1, order_by: [asc: :id]}}
+    args1 = {{:many, Post}, %{limit: 1, order_by: [asc: :id]}}
+    args2 = {{:many, Post}, %{limit: 2, order_by: [asc: :id]}}
+
+    loader =
+      loader
+      |> Dataloader.load(Test, args0, [])
+      |> Dataloader.load(Test, args1, [])
+      |> Dataloader.load(Test, args2, [])
+      |> Dataloader.run()
+
+    assert post1 == Dataloader.get(loader, Test, args0, [])
+    assert [post1] == Dataloader.get(loader, Test, args1, [])
+    assert [post1, post2] == Dataloader.get(loader, Test, args2, [])
+  end
+
   test "Load has-many association with limit", %{loader: loader} do
     user1 = %User{username: "Ben Wilson"} |> Repo.insert!()
     user2 = %User{username: "Bruce Williams"} |> Repo.insert!()
