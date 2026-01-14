@@ -92,9 +92,13 @@ defmodule Dataloader do
           options: [option]
         }
 
-  @type option :: {:timeout, pos_integer} | {:get_policy, atom()}
+  @type option ::
+          {:timeout, pos_integer}
+          | {:get_policy, atom()}
+          | {:timeout_margin, non_neg_integer}
   @type source_name :: any
 
+  @default_timeout_margin 1_000
   @default_timeout 15_000
   def default_timeout, do: @default_timeout
 
@@ -108,7 +112,7 @@ defmodule Dataloader do
   @spec new([option]) :: t
   def new(opts \\ []) do
     opts =
-      [get_policy: @default_get_policy]
+      [get_policy: @default_get_policy, timeout_margin: @default_timeout_margin]
       |> Keyword.merge(opts)
 
     %__MODULE__{options: opts}
@@ -135,10 +139,25 @@ defmodule Dataloader do
     load_many(loader, source_name, batch_key, [val])
   end
 
+  defp do_load({:error, error}, _, _), do: {:error, error}
+
   defp do_load(source, batch_key, vals) do
     Enum.reduce(vals, source, &Source.load(&2, batch_key, &1))
   end
 
+  @doc """
+  A note on error handling.
+  If a Source.run/1 call returns an error or times out, the source is considered failed and
+  irrecoverable. This is motivated by a two points:
+    * There is no way to clear the failing batches from a Source (currently), any future Source.run/1 will
+    retry the same batches with potential additional batches. If the issue causing a timeout is not
+    resolved between runs it will incur severe delays to full response.
+    * If future Source.run/1 on failed Sources would be allowed, it is not possible to distinguish
+    between failures of future batch/key and the previous Source error without keeping track of
+    which batch was part of which run. Not distinguishing between different errors could be
+    very detrimental during debugging.
+  The above points could be addressed by designing a different protocol.
+  """
   @spec run(t) :: t
   def run(dataloader) do
     if pending_batches?(dataloader) do
@@ -149,8 +168,12 @@ defmodule Dataloader do
 
       emit_start_event(id, system_time, dataloader)
 
-      {async_sources, sync_sources} =
+      {error_sources, ok_sources} =
         dataloader.sources
+        |> Enum.split_with(&match?({_name, {:error, _}}, &1))
+
+      {async_sources, sync_sources} =
+        ok_sources
         |> Enum.split_with(fn {_name, source} -> Dataloader.Source.async?(source) end)
 
       async_source_results =
@@ -187,8 +210,9 @@ defmodule Dataloader do
         |> Stream.concat(sync_source_results)
         |> Stream.map(fn
           {_source, {:ok, {name, source}}} -> {name, source}
-          {_source, {:error, reason}} -> {:error, reason}
+          {{name, _}, {:error, reason}} -> {name, {:error, reason}}
         end)
+        |> Stream.concat(error_sources)
         |> Map.new()
 
       updated_dataloader = %{dataloader | sources: sources}
@@ -220,18 +244,18 @@ defmodule Dataloader do
   defp dataloader_timeout(dataloader) do
     max_source_timeout =
       dataloader.sources
-      |> Enum.map(fn {_, source} -> Source.timeout(source) end)
+      |> Enum.map(fn {_, source} -> do_timeout(source) end)
       |> Enum.reject(&is_nil/1)
       |> Enum.max(fn -> @default_timeout end)
 
-    max_source_timeout + :timer.seconds(1)
+    max_source_timeout + Keyword.get(dataloader.options, :timeout_margin, @default_timeout_margin)
   end
 
   @spec get(t, source_name, any, any) :: any
   def get(loader = %Dataloader{options: options}, source, batch_key, item_key) do
     loader
     |> get_source(source)
-    |> Source.fetch(batch_key, item_key)
+    |> do_fetch(batch_key, item_key)
     |> do_get(options[:get_policy])
   end
 
@@ -242,10 +266,13 @@ defmodule Dataloader do
 
     for key <- item_keys do
       source
-      |> Source.fetch(batch_key, key)
+      |> do_fetch(batch_key, key)
       |> do_get(options[:get_policy])
     end
   end
+
+  defp do_fetch({:error, reason}, _, _), do: {:error, reason}
+  defp do_fetch(source, batch_key, key), do: Source.fetch(source, batch_key, key)
 
   defp do_get({:ok, val}, :raise_on_error), do: val
   defp do_get({:ok, val}, :return_nil_on_error), do: val
@@ -255,18 +282,27 @@ defmodule Dataloader do
   defp do_get({:error, _reason}, :return_nil_on_error), do: nil
   defp do_get({:error, reason}, :tuples), do: {:error, reason}
 
+  defp do_timeout({:error, _reason}), do: nil
+  defp do_timeout(source), do: Source.timeout(source)
+
   def put(loader, source_name, batch_key, item_key, result) do
     source =
       loader
       |> get_source(source_name)
-      |> Source.put(batch_key, item_key, result)
+      |> do_put(batch_key, item_key, result)
 
     put_in(loader.sources[source_name], source)
   end
 
+  defp do_put({:error, reason}, _, _, _), do: {:error, reason}
+  defp do_put(source, batch_key, key, result), do: Source.put(source, batch_key, key, result)
+
   @spec pending_batches?(t) :: boolean
   def pending_batches?(loader) do
-    Enum.any?(loader.sources, fn {_name, source} -> Source.pending_batches?(source) end)
+    Enum.any?(loader.sources, fn
+      {_name, {:error, _}} -> false
+      {_name, source} -> Source.pending_batches?(source)
+    end)
   end
 
   defp get_source(loader, source_name) do
@@ -394,13 +430,13 @@ defmodule Dataloader do
   # Optionally use `async/1` and `async_stream/3` functions from
   # `opentelemetry_process_propagator` if available
   if Code.ensure_loaded?(OpentelemetryProcessPropagator.Task) do
-    @spec async((() -> any)) :: Task.t()
+    @spec async((-> any)) :: Task.t()
     defdelegate async(fun), to: OpentelemetryProcessPropagator.Task
 
     @spec async_stream(Enumerable.t(), (term -> term), keyword) :: Enumerable.t()
     defdelegate async_stream(items, fun, opts), to: OpentelemetryProcessPropagator.Task
   else
-    @spec async((() -> any)) :: Task.t()
+    @spec async((-> any)) :: Task.t()
     defdelegate async(fun), to: Task
 
     @spec async_stream(Enumerable.t(), (term -> term), keyword) :: Enumerable.t()

@@ -1,6 +1,7 @@
 defmodule DataloaderTest do
   use ExUnit.Case, async: false
   import ExUnit.CaptureLog
+  import Mox
 
   doctest Dataloader
 
@@ -36,6 +37,8 @@ defmodule DataloaderTest do
 
     {key, item}
   end
+
+  setup :verify_on_exit!
 
   setup do
     loader =
@@ -101,6 +104,69 @@ defmodule DataloaderTest do
         |> Dataloader.run()
         |> Dataloader.get(:bogus, :users, "ben")
       end
+    end
+  end
+
+  describe "run/1" do
+    test "returns error" do
+      Dataloader.TestSource.MockSource
+      # lowest possible timeout
+      |> stub(:timeout, fn _ -> 1 end)
+      # false would skip invoking Source.run/1
+      |> stub(:pending_batches?, fn _ -> true end)
+      |> stub(:async?, fn _ -> true end)
+      # Dataloader adds one second to every timeout, to trigger timeout we
+      # need to hold longer than <timeout> + 1s
+      |> expect(:run, 1, fn _ -> {:error, :test_error} end)
+
+      loader =
+        Dataloader.new(get_policy: :tuples)
+        |> Dataloader.add_source(:test, %Dataloader.TestSource.SourceImpl{})
+        |> Dataloader.run()
+
+      # Dataloader replaces the source struct with error tuple. There is
+      # no reasonable recovery from Source.run/1 errors.
+      assert %{sources: %{test: {:error, :test_error}}} = loader
+    end
+
+    test "exceeds timeout" do
+      Dataloader.TestSource.MockSource
+      # lowest possible timeout
+      |> stub(:timeout, fn _ -> 1 end)
+      # false would skip invoking Source.run/1
+      |> stub(:pending_batches?, fn _ -> true end)
+      |> stub(:async?, fn _ -> true end)
+      |> expect(:run, fn %{name: :test} -> Process.sleep(2) end)
+
+      loader =
+        Dataloader.new(get_policy: :tuples, timeout_margin: 0)
+        |> Dataloader.add_source(:test, %Dataloader.TestSource.SourceImpl{name: :test})
+        |> Dataloader.run()
+
+      # Dataloader replaces the source struct with error tuple. There is
+      # no reasonable recovery from timeout.
+      assert %{sources: %{test: {:error, :timeout}}} = loader
+    end
+
+    test "use highest timeout plus margin as timeout for all tasks" do
+      Dataloader.TestSource.MockSource
+      |> expect(:timeout, 4, fn %{timeout: t} -> t end)
+      # pending_batches? is only checked for any?
+      |> stub(:pending_batches?, fn _ -> true end)
+      |> stub(:async?, fn _ -> true end)
+      # Sleep for 2ms (not triggering timeout) or 11ms (triggering timeout)
+      |> expect(:run, 2, fn s ->
+        Process.sleep(s.timeout + 2)
+        s
+      end)
+
+      loader =
+        Dataloader.new(get_policy: :tuples, timeout_margin: 1)
+        |> Dataloader.add_source(:test_1, %Dataloader.TestSource.SourceImpl{timeout: 1})
+        |> Dataloader.add_source(:test_2, %Dataloader.TestSource.SourceImpl{timeout: 5})
+        |> Dataloader.run()
+
+      assert %{sources: %{test_1: %{}, test_2: {:error, :timeout}}} = loader
     end
   end
 
@@ -187,6 +253,28 @@ defmodule DataloaderTest do
 
       assert log =~ "hell"
     end
+
+    test "get/4 raises an exception when there was an error running the source batches" do
+      loader =
+        Dataloader.new(get_policy: :raise_on_error)
+        |> Dataloader.add_source(:test, {:error, :test_error})
+
+      assert_raise Dataloader.GetError, ":test_error", fn ->
+        loader
+        |> Dataloader.get(:test, :foo, "foo")
+      end
+    end
+
+    test "get_many/4 raises an exception when there was an error running the source batches" do
+      loader =
+        Dataloader.new(get_policy: :raise_on_error)
+        |> Dataloader.add_source(:test, {:error, :test_error})
+
+      assert_raise Dataloader.GetError, ":test_error", fn ->
+        loader
+        |> Dataloader.get_many(:test, :foo, ["foo"])
+      end
+    end
   end
 
   describe "get methods when configured to return `nil` on error" do
@@ -249,6 +337,22 @@ defmodule DataloaderTest do
 
       assert log =~ "hell"
     end
+
+    test "get/4 return `nil` when there was an error running the source batches" do
+      loader =
+        Dataloader.new(get_policy: :tuples)
+        |> Dataloader.add_source(:test, {:error, :test_error})
+
+      assert {:error, :test_error} == loader |> Dataloader.get(:test, :foo, "foo")
+    end
+
+    test "get_many/4 return `nil` when there was an error running the source batches" do
+      loader =
+        Dataloader.new(get_policy: :return_nil_on_error)
+        |> Dataloader.add_source(:test, {:error, :test_error})
+
+      assert [nil] == loader |> Dataloader.get_many(:test, :foo, ["foo"])
+    end
   end
 
   describe "get methods when configured to return ok/error tuples" do
@@ -284,6 +388,14 @@ defmodule DataloaderTest do
         |> Dataloader.get(:test, :results, :error_data)
 
       assert result == {:error, :value}
+    end
+
+    test "get/4 returns an {:error, reason} tuple when there was an error running the source batches" do
+      loader =
+        Dataloader.new(get_policy: :tuples)
+        |> Dataloader.add_source(:test, {:error, :test_error})
+
+      assert {:error, :test_error} == loader |> Dataloader.get(:test, :foo, "foo")
     end
 
     test "get_many/4 returns a list of {:ok, value} tuples when successful", %{loader: loader} do
@@ -333,6 +445,14 @@ defmodule DataloaderTest do
         end)
 
       assert log =~ "hell"
+    end
+
+    test "get_many/4 returns a list of {:error, reason} tuples when there was an error running the source batches" do
+      loader =
+        Dataloader.new(get_policy: :tuples)
+        |> Dataloader.add_source(:test, {:error, :test_error})
+
+      assert [{:error, :test_error}] == loader |> Dataloader.get_many(:test, :foo, ["foo"])
     end
   end
 end
