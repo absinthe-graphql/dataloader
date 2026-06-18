@@ -396,8 +396,9 @@ if Code.ensure_loaded?(Ecto) do
           )
 
         results =
-          Map.merge(source.results, results, fn _, {:ok, v1}, {:ok, v2} ->
-            {:ok, Map.merge(v1, v2)}
+          Map.merge(source.results, results, fn
+            _, {:ok, v1}, {:ok, v2} -> {:ok, Map.merge(v1, v2)}
+            _, _previous, current -> current
           end)
 
         %{source | results: results, batches: %{}}

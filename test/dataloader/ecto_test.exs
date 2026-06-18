@@ -574,4 +574,45 @@ defmodule Dataloader.EctoTest do
       assert ^user = loaded
     end)
   end
+
+  test "a batch key that succeeds then errors on a later run does not crash run/1" do
+    user1 = %User{username: "Ben Wilson"} |> Repo.insert!()
+    user2 = %User{username: "Andy Berry"} |> Repo.insert!()
+
+    counter = :counters.new(1, [])
+
+    source =
+      Dataloader.Ecto.new(
+        Repo,
+        query: fn queryable, _args ->
+          :counters.add(counter, 1, 1)
+
+          if :counters.get(counter, 1) == 1 do
+            queryable
+          else
+            raise "boom"
+          end
+        end
+      )
+
+    loader =
+      Dataloader.new(async: false, get_policy: :tuples)
+      |> Dataloader.add_source(Test, source)
+
+    loaded =
+      loader
+      |> Dataloader.load(Test, User, user1.id)
+      |> Dataloader.run()
+
+    assert {:ok, %User{id: id}} = Dataloader.get(loaded, Test, User, user1.id)
+    assert id == user1.id
+
+    # Same batch key (User/:id), different item key, this time the query errors.
+    errored =
+      loaded
+      |> Dataloader.load(Test, User, user2.id)
+      |> Dataloader.run()
+
+    assert {:error, _} = Dataloader.get(errored, Test, User, user2.id)
+  end
 end
