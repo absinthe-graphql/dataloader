@@ -48,13 +48,17 @@ defmodule Dataloader do
 
   ## Options
 
-  There are two configuration options:
+  There are three configuration options:
 
   * `timeout` - The maximum timeout to wait for running a source, defaults to
     1s more than the maximum timeout of all added sources. Set with care,
     timeouts should really only be set on sources.
   * `get_policy` - This configures how the dataloader will behave when fetching
     data which may have errored when we tried  to `load` it.
+  * `max_concurrency` - The maximum number of sources to run concurrently,
+    defaults to `System.schedulers_online/0`. Set to `:infinity` to run every
+    async source at once. This is separate from any limit a source places on
+    its own batches, such as the `max_concurrency` option of `Dataloader.KV`.
 
   These can be set as part of the `new/1` call. So, for example, to
   configure a dataloader that returns `nil` on error with a 5s timeout:
@@ -92,7 +96,10 @@ defmodule Dataloader do
           options: [option]
         }
 
-  @type option :: {:timeout, pos_integer} | {:get_policy, atom()}
+  @type option ::
+          {:timeout, pos_integer}
+          | {:get_policy, atom()}
+          | {:max_concurrency, pos_integer | :infinity}
   @type source_name :: any
 
   @default_timeout 15_000
@@ -161,7 +168,8 @@ defmodule Dataloader do
             async_sources,
             fun,
             [
-              timeout: dataloader_timeout(dataloader)
+              timeout: dataloader_timeout(dataloader),
+              max_concurrency: source_concurrency(dataloader, length(async_sources))
             ]
           ],
           async?: true
@@ -225,6 +233,20 @@ defmodule Dataloader do
       |> Enum.max(fn -> @default_timeout end)
 
     max_source_timeout + :timer.seconds(1)
+  end
+
+  defp source_concurrency(%{options: options}, source_count) do
+    case Keyword.get(options, :max_concurrency, System.schedulers_online()) do
+      :infinity ->
+        max(source_count, 1)
+
+      max_concurrency when is_integer(max_concurrency) and max_concurrency > 0 ->
+        max_concurrency
+
+      other ->
+        raise ArgumentError,
+              ":max_concurrency must be a positive integer or :infinity, got: #{inspect(other)}"
+    end
   end
 
   @spec get(t, source_name, any, any) :: any

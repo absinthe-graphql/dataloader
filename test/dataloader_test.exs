@@ -87,6 +87,67 @@ defmodule DataloaderTest do
     end
   end
 
+  describe "max_concurrency" do
+    # Runs `n` sources that each tick a shared logical clock when they start and
+    # stop, returning the `{start, stop}` ticks of every source.
+    defp run_sources(n, opts) do
+      clock = :atomics.new(1, [])
+
+      query = fn _batch_key, ids ->
+        start = :atomics.add_get(clock, 1, 1)
+        Process.sleep(50)
+        stop = :atomics.add_get(clock, 1, 1)
+        Map.new(ids, &{&1, {start, stop}})
+      end
+
+      loader =
+        Enum.reduce(1..n, Dataloader.new(opts), fn i, loader ->
+          loader
+          |> Dataloader.add_source(i, Dataloader.KV.new(query))
+          |> Dataloader.load(i, :key, i)
+        end)
+        |> Dataloader.run()
+
+      for i <- 1..n, do: Dataloader.get(loader, i, :key, i)
+    end
+
+    # The most sources that were running at the same tick.
+    defp max_concurrent(intervals) do
+      intervals
+      |> Enum.flat_map(fn {start, stop} -> [{start, 1}, {stop, -1}] end)
+      |> Enum.sort()
+      |> Enum.scan(0, fn {_tick, delta}, running -> running + delta end)
+      |> Enum.max()
+    end
+
+    test "runs every async source at once when set to :infinity" do
+      n = System.schedulers_online() * 2 + 1
+
+      assert n |> run_sources(max_concurrency: :infinity) |> max_concurrent() == n
+    end
+
+    test "defaults to running System.schedulers_online() sources at once" do
+      n = System.schedulers_online() * 2 + 1
+
+      assert n |> run_sources([]) |> max_concurrent() == System.schedulers_online()
+    end
+
+    test "limits how many sources run at once" do
+      assert 3 |> run_sources(max_concurrency: 1) |> max_concurrent() == 1
+    end
+
+    test "raises when invalid" do
+      loader =
+        Dataloader.new(max_concurrency: 0)
+        |> Dataloader.add_source(:test, Dataloader.KV.new(&query/2))
+        |> Dataloader.load(:test, :users, "ben")
+
+      assert_raise ArgumentError, ~r/:max_concurrency must be a positive integer/, fn ->
+        Dataloader.run(loader)
+      end
+    end
+  end
+
   describe "unknown sources" do
     test "load/3 for unknown source returns error", %{loader: loader} do
       assert_raise RuntimeError, ~r/Source does not exist/, fn ->
