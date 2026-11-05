@@ -84,7 +84,6 @@ defmodule Dataloader do
   defstruct sources: %{},
             options: []
 
-  require Logger
   alias Dataloader.Source
 
   @type t :: %__MODULE__{
